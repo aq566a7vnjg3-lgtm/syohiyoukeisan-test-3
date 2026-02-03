@@ -30,6 +30,7 @@
   .sec td{ background:var(--sec); font-weight:700; }
   .sub td{ background:var(--sub); font-weight:800; }
   tfoot td{ background:var(--sub); font-weight:800; border-top:2px solid #7fa0b8; }
+  .noteSmall{ font-size:11px; color:#444; margin-top:4px; }
   @media (max-width:920px){ .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } .wide{ grid-column:span 2; } table{ min-width:760px; } }
 </style>
 </head>
@@ -39,7 +40,7 @@
   <div class="top">
     <button class="btn" id="resetBtn">選択を解除</button>
     <button class="btn" id="recalcBtn">確認（再計算）</button>
-    <span class="hint">※検査登録届出代行費用は削除済み／普通車の車庫証明代行費用は不要／希望番号 申込(10,000)は不要</span>
+    <span class="hint">※下取証紙は表示しません／軽自動車は申請方法=書類代行固定／下取りなしは所有者・残債をスキップ</span>
   </div>
 
   <form id="feeForm">
@@ -70,8 +71,9 @@
 
       <section class="panel">
         <h3>④ 申請方法</h3>
-        <label><input type="radio" name="apply" value="OSS">OSS</label>
-        <label><input type="radio" name="apply" value="書類代行">書類代行</label>
+        <label id="applyOSSLabel"><input type="radio" name="apply" value="OSS" id="applyOSS">OSS</label>
+        <label><input type="radio" name="apply" value="書類代行" id="applyDocs">書類代行</label>
+        <div class="noteSmall" id="applyLockNote" style="display:none;">※軽自動車は書類代行固定</div>
       </section>
 
       <section class="panel wide">
@@ -115,13 +117,15 @@
             <label><input type="radio" name="trade" value="あり">下取りあり</label>
             <label><input type="radio" name="trade" value="なし">下取りなし</label>
           </div>
-          <div style="flex:1; min-width:220px;">
-            <div class="hint">⑧ 所有者</div>
+
+          <div style="flex:1; min-width:220px;" id="ownerBox">
+            <div class="hint">⑧ 所有者（下取りありのとき）</div>
             <label><input type="radio" name="owner" value="お客様">所有権お客様</label>
             <label><input type="radio" name="owner" value="信販会社">所有権信販会社</label>
           </div>
-          <div style="flex:1; min-width:220px;">
-            <div class="hint">⑨ 残債</div>
+
+          <div style="flex:1; min-width:220px;" id="loanBox">
+            <div class="hint">⑨ 残債（所有権が信販会社のとき）</div>
             <label><input type="radio" name="loan" value="あり">残債あり</label>
             <label><input type="radio" name="loan" value="なし">残債なし</label>
           </div>
@@ -157,7 +161,7 @@
       </div>
 
       <div class="hint" style="margin-top:8px;">
-        ※非課税として扱っているもの：車庫証紙/下取証紙/下取車諸手続/R資金管理料金/図柄寄付金（登録証紙は表示しません）
+        ※非課税として扱っているもの：車庫証紙 / 下取車諸手続 / R資金管理料金 / 図柄寄付金（登録証紙・下取証紙は表示しません）
       </div>
     </div>
   </form>
@@ -169,12 +173,12 @@
 function typeKeyFromCar(car){
   return (car === "軽自動車") ? "軽四" : "小型"; // 普通車=小型扱い
 }
-
 const APPLY_FEE = { "OSS": 41000, "書類代行": 24500 };
 
-// ★車庫証明代行費用：軽自動車で必要なら 16,800 / 普通車は不要（0）
+// 車庫証明代行費用：軽自動車で必要なら 16,800 / 普通車は不要（0）
 const SHAKO_DAIKO_KEI_NEED = 16800;
 
+// 車庫証紙（非課税）
 const SHAKO_SHOSHI = {
   "奈良県": { "軽四": 0, "小型": 2100 },
   "京都府": { "軽四": 0, "小型": 2280 },
@@ -185,6 +189,7 @@ const SHAKO_SHOSHI = {
   "兵庫県": { "軽四": 0, "小型": 2200 }
 };
 
+// 標板代（ペイント）
 const PLATE_PAINT = {
   "軽四": {
     "奈良県": { "一般番号": 6060, "希望番号": 8860, "ラグビー": 9160, "オリンピック": 11400, "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
@@ -206,6 +211,7 @@ const PLATE_PAINT = {
   }
 };
 
+// 字光式（一般/希望）
 const PLATE_JIKOU = {
   "軽四": {
     "奈良県": { "一般番号": 9560, "希望番号": 11710 },
@@ -227,24 +233,20 @@ const PLATE_JIKOU = {
   }
 };
 
-// ★希望番号 申込（10,000）は不要なので削除
 const HOPE_FEE = { "小型": 11000, "軽四": 11000 };
 const PATTERN_FEE = { "小型": 20000, "軽四": 17000 };
 const PATTERN_DONATION = 1000;
 
 const JIKOU_TOOL = 27500;
 
+// 下取り関連（下取証紙は表示しない＝計上もしない）
 const TRADEIN_DAIKO = 23000;
-const TRADEIN_STAMP = 500;
-const TRADEIN_PROC = 500;
+const TRADEIN_PROC = 500; // 下取車諸手続（非課税）
 
 const LOAN_FEE = 880;
 
-const R_MGMT = 290;
-const R_ISSUE = 2200;
-
-/** 登録証紙は「表示しない」ので、金額定義だけ残しても使いません（必要なら後で復活可） */
-const REG_STAMP = { "OSS": 2200, "小型": 2800, "軽四": 1900 };
+const R_MGMT = 290;   // 非課税
+const R_ISSUE = 2200; // 課税
 
 /** ========= UI / 計算 ========= **/
 const yenFmt = n => new Intl.NumberFormat("ja-JP").format(Math.max(0, Math.round(n||0)));
@@ -256,9 +258,26 @@ const tbody = document.getElementById("resultTbody");
 const nontaxEl = document.getElementById("nontaxSubtotalYen");
 const thApply = document.getElementById("thApply");
 
+const applyOSS = document.getElementById("applyOSS");
+const applyOSSLabel = document.getElementById("applyOSSLabel");
+const applyDocs = document.getElementById("applyDocs");
+const applyLockNote = document.getElementById("applyLockNote");
+const ownerBox = document.getElementById("ownerBox");
+const loanBox = document.getElementById("loanBox");
+
 function getVal(name){
   const el = form.querySelector(`input[name="${name}"]:checked`);
   return el ? el.value : null;
+}
+function setChecked(name, value){
+  const el = form.querySelector(`input[name="${name}"][value="${value}"]`);
+  if(el) el.checked = true;
+}
+function clearGroup(name){
+  form.querySelectorAll(`input[name="${name}"]`).forEach(r=>r.checked=false);
+}
+function setGroupDisabled(name, disabled){
+  form.querySelectorAll(`input[name="${name}"]`).forEach(r=>r.disabled = !!disabled);
 }
 function escapeHtml(str){
   return String(str ?? "")
@@ -267,9 +286,7 @@ function escapeHtml(str){
 }
 function setPatternEnabled(enabled){
   patternBox.classList.toggle("disabled", !enabled);
-  if(!enabled){
-    form.querySelectorAll('input[name="pattern"]').forEach(r=>r.checked=false);
-  }
+  if(!enabled) clearGroup("pattern");
 }
 function enforcePlateRules(){
   const plate = getVal("plate");
@@ -277,12 +294,60 @@ function enforcePlateRules(){
   const needPattern = (plate === "希望図柄番号");
   setPatternEnabled(needPattern);
   if(needPattern && style === "字光式"){
-    const paint = form.querySelector('input[name="plateStyle"][value="ペイント"]');
-    if(paint) paint.checked = true;
+    setChecked("plateStyle","ペイント");
+  }
+}
+
+function updateConditionalUI(){
+  const car = getVal("car");
+  const trade = getVal("trade");
+  const owner = getVal("owner");
+
+  // ■軽自動車は申請方法=書類代行固定（OSS無効）
+  if(car === "軽自動車"){
+    applyOSS.disabled = true;
+    applyOSSLabel.classList.add("disabled");
+    applyLockNote.style.display = "block";
+    setChecked("apply","書類代行");
+  } else {
+    applyOSS.disabled = false;
+    applyOSSLabel.classList.remove("disabled");
+    applyLockNote.style.display = "none";
+  }
+
+  // ■下取りなし：所有者・残債をスキップ（選択解除＆無効化）
+  if(trade === "なし"){
+    clearGroup("owner");
+    clearGroup("loan");
+    setGroupDisabled("owner", true);
+    setGroupDisabled("loan", true);
+    ownerBox.classList.add("disabled");
+    loanBox.classList.add("disabled");
+    return; // ここで確定
+  }
+
+  // 下取りあり：所有者は有効
+  setGroupDisabled("owner", false);
+  ownerBox.classList.remove("disabled");
+
+  // ■所有者がお客様：残債スキップ（選択解除＆無効化）
+  if(owner === "お客様"){
+    clearGroup("loan");
+    setGroupDisabled("loan", true);
+    loanBox.classList.add("disabled");
+  } else if(owner === "信販会社"){
+    setGroupDisabled("loan", false);
+    loanBox.classList.remove("disabled");
+  } else {
+    // owner未選択のときは loanも無効化しておく
+    clearGroup("loan");
+    setGroupDisabled("loan", true);
+    loanBox.classList.add("disabled");
   }
 }
 
 function calc(){
+  updateConditionalUI();
   enforcePlateRules();
 
   const car = getVal("car");
@@ -300,9 +365,19 @@ function calc(){
 
   const needPattern = (plate === "希望図柄番号");
 
-  const required = ["car","pref","shakoNeed","apply","plate","plateStyle","trade","owner","loan"];
+  // 必須条件を動的に変更
+  const required = ["car","pref","shakoNeed","apply","plate","plateStyle","trade"];
+
+  // 下取りあり のときだけ owner必須
+  if(trade === "あり") required.push("owner");
+
+  // ownerが信販会社のときだけ loan必須
+  if(trade === "あり" && owner === "信販会社") required.push("loan");
+
+  // 希望図柄のときだけ pattern必須
+  if(needPattern) required.push("pattern");
+
   const missing = required.filter(k => !getVal(k));
-  if(needPattern && !pattern) missing.push("pattern");
 
   if(missing.length){
     statusText.textContent = "未選択があります（必須項目を選択してください）";
@@ -338,9 +413,6 @@ function calc(){
   const plateTable = (plateStyle === "字光式") ? PLATE_JIKOU : PLATE_PAINT;
   const plateRow = plateTable?.[typeKey]?.[pref] ?? null;
 
-  // ★登録証紙は「表示しない」ため、合算も停止（=登録証紙はどこにも出ません）
-  // （以前の合算要望を撤回したい場合はここで再度合算できます）
-
   if(plate === "一般番号"){
     const v = plateRow?.["一般番号"];
     push(`標板代（${plateStyle}・一般番号）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
@@ -349,7 +421,6 @@ function calc(){
   if(plate === "希望番号"){
     const v = plateRow?.["希望番号"];
     push(`標板代（${plateStyle}・希望番号）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
-    // ★希望番号 申込(10,000)は不要
     push("希望番号手数料（希望）", HOPE_FEE[typeKey] ?? 0, "", true);
   }
 
@@ -370,26 +441,31 @@ function calc(){
   push("R資金管理料金", R_MGMT, "", false);
   push("R発行費用", R_ISSUE, "", true);
 
-  // ⑦下取り
+  // ⑦下取り（下取証紙は表示しない＝計上なし）
   if(trade === "あり"){
     if(owner === "信販会社"){
       push("下取代行", TRADEIN_DAIKO, "", true);
     } else {
       push("下取代行", 0, "（所有権お客様：該当なし扱い）", true);
     }
-    push("下取証紙", TRADEIN_STAMP, "", false);
     push("下取車諸手続", TRADEIN_PROC, "", false);
   } else {
     push("下取代行", 0, "（下取りなし）", true);
-    push("下取証紙", 0, "（下取りなし）", false);
     push("下取車諸手続", 0, "（下取りなし）", false);
   }
 
-  // ⑨残債
-  if(loan === "あり"){
-    push("残債手数料", LOAN_FEE, "", true);
+  // ⑨残債（必須は信販会社のときだけ。計算も同様）
+  if(trade === "あり" && owner === "信販会社"){
+    if(loan === "あり"){
+      push("残債手数料", LOAN_FEE, "", true);
+    } else if(loan === "なし"){
+      push("残債手数料", 0, "（残債なし）", true);
+    } else {
+      push("残債手数料", 0, "（未選択）", true);
+    }
   } else {
-    push("残債手数料", 0, "（残債なし）", true);
+    // スキップ
+    push("残債手数料", 0, "（スキップ）", true);
   }
 
   // ===== 表描画（課税/非課税、小計） =====
@@ -430,6 +506,7 @@ function calc(){
 document.getElementById("resetBtn").addEventListener("click", ()=>{
   form.reset();
   setPatternEnabled(false);
+  // UI条件を反映してから計算
   calc();
 });
 document.getElementById("recalcBtn").addEventListener("click", calc);
