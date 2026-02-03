@@ -39,7 +39,7 @@
   <div class="top">
     <button class="btn" id="resetBtn">選択を解除</button>
     <button class="btn" id="recalcBtn">確認（再計算）</button>
-    <span class="hint">※検査登録届出代行費用は削除済み／普通車の車庫証明代行費用は不要</span>
+    <span class="hint">※検査登録届出代行費用は削除済み／普通車の車庫証明代行費用は不要／希望番号 申込(10,000)は不要</span>
   </div>
 
   <form id="feeForm">
@@ -157,7 +157,7 @@
       </div>
 
       <div class="hint" style="margin-top:8px;">
-        ※非課税として扱っているもの：車庫証紙/登録証紙（合算対象以外）/下取証紙/下取車諸手続/R資金管理料金/図柄寄付金
+        ※非課税として扱っているもの：車庫証紙/下取証紙/下取車諸手続/R資金管理料金/図柄寄付金（登録証紙は表示しません）
       </div>
     </div>
   </form>
@@ -170,13 +170,11 @@ function typeKeyFromCar(car){
   return (car === "軽自動車") ? "軽四" : "小型"; // 普通車=小型扱い
 }
 
-// ④申請方法：登録代行費用
 const APPLY_FEE = { "OSS": 41000, "書類代行": 24500 };
 
 // ★車庫証明代行費用：軽自動車で必要なら 16,800 / 普通車は不要（0）
 const SHAKO_DAIKO_KEI_NEED = 16800;
 
-// 車庫証紙（非課税）
 const SHAKO_SHOSHI = {
   "奈良県": { "軽四": 0, "小型": 2100 },
   "京都府": { "軽四": 0, "小型": 2280 },
@@ -187,7 +185,6 @@ const SHAKO_SHOSHI = {
   "兵庫県": { "軽四": 0, "小型": 2200 }
 };
 
-// 標板代（ペイント）
 const PLATE_PAINT = {
   "軽四": {
     "奈良県": { "一般番号": 6060, "希望番号": 8860, "ラグビー": 9160, "オリンピック": 11400, "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
@@ -209,7 +206,6 @@ const PLATE_PAINT = {
   }
 };
 
-// 字光式（一般/希望）
 const PLATE_JIKOU = {
   "軽四": {
     "奈良県": { "一般番号": 9560, "希望番号": 11710 },
@@ -231,28 +227,23 @@ const PLATE_JIKOU = {
   }
 };
 
-// 希望番号関連
-const HOPE_NUMBER_APPLY = 10000;
+// ★希望番号 申込（10,000）は不要なので削除
 const HOPE_FEE = { "小型": 11000, "軽四": 11000 };
 const PATTERN_FEE = { "小型": 20000, "軽四": 17000 };
 const PATTERN_DONATION = 1000;
 
-// 字光式器具（税込）
 const JIKOU_TOOL = 27500;
 
-// 下取り関連
 const TRADEIN_DAIKO = 23000;
 const TRADEIN_STAMP = 500;
 const TRADEIN_PROC = 500;
 
-// 残債
 const LOAN_FEE = 880;
 
-// R関連
 const R_MGMT = 290;
 const R_ISSUE = 2200;
 
-// 登録証紙（OSS/小型/軽四）※非課税
+/** 登録証紙は「表示しない」ので、金額定義だけ残しても使いません（必要なら後で復活可） */
 const REG_STAMP = { "OSS": 2200, "小型": 2800, "軽四": 1900 };
 
 /** ========= UI / 計算 ========= **/
@@ -329,15 +320,11 @@ function calc(){
   // ④申請方法：登録代行費用
   if(apply) push("登録代行費用", APPLY_FEE[apply] ?? 0, "", true);
 
-  // 登録証紙（非課税）…ただし「ペイント・一般番号」のときは標板代へ合算して行自体は出さない
-  const regStamp = (apply === "OSS") ? REG_STAMP["OSS"] : REG_STAMP[typeKey];
-
   // ③車庫証明
   if(shakoNeed === "必要"){
     if(car === "軽自動車"){
       push("車庫証明代行費用", SHAKO_DAIKO_KEI_NEED, "（軽自動車＋必要）", true);
     } else {
-      // ★要望どおり：普通車は不要
       push("車庫証明代行費用", 0, "（普通車は不要）", true);
     }
     const sh = SHAKO_SHOSHI?.[pref]?.[typeKey];
@@ -351,28 +338,18 @@ function calc(){
   const plateTable = (plateStyle === "字光式") ? PLATE_JIKOU : PLATE_PAINT;
   const plateRow = plateTable?.[typeKey]?.[pref] ?? null;
 
-  // 合算条件：ペイント＋一般番号 のときだけ、標板代に登録証紙を合算する
-  const mergeRegStampIntoPaintGeneral = (plateStyle === "ペイント" && plate === "一般番号" && (regStamp!=null));
+  // ★登録証紙は「表示しない」ため、合算も停止（=登録証紙はどこにも出ません）
+  // （以前の合算要望を撤回したい場合はここで再度合算できます）
 
   if(plate === "一般番号"){
     const v = plateRow?.["一般番号"];
-    const base = (v ?? 0);
-    const merged = mergeRegStampIntoPaintGeneral ? (base + regStamp) : base;
-
-    push(
-      mergeRegStampIntoPaintGeneral
-        ? "標板代（ペイント・一般番号）＋登録証紙"
-        : `標板代（${plateStyle}・一般番号）`,
-      merged,
-      mergeRegStampIntoPaintGeneral ? "（登録証紙を合算）" : (v==null ? "（金額未設定）" : ""),
-      true // 合算後は課税枠で表示（要望どおり「結果として出力」優先）
-    );
+    push(`標板代（${plateStyle}・一般番号）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
   }
 
   if(plate === "希望番号"){
     const v = plateRow?.["希望番号"];
     push(`標板代（${plateStyle}・希望番号）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
-    push("希望番号 申込", HOPE_NUMBER_APPLY, "", true);
+    // ★希望番号 申込(10,000)は不要
     push("希望番号手数料（希望）", HOPE_FEE[typeKey] ?? 0, "", true);
   }
 
@@ -387,11 +364,6 @@ function calc(){
 
   if(plateStyle === "字光式"){
     push("字光式器具（税込）", JIKOU_TOOL, "", true);
-  }
-
-  // 登録証紙を「合算しなかった場合」だけ表示（非課税）
-  if(apply && !mergeRegStampIntoPaintGeneral){
-    push("登録証紙", regStamp ?? 0, "", false);
   }
 
   // R関連
