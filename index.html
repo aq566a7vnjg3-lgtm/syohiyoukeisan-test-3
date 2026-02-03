@@ -40,7 +40,9 @@
   <div class="top">
     <button class="btn" id="resetBtn">選択を解除</button>
     <button class="btn" id="recalcBtn">確認（再計算）</button>
-    <span class="hint">※下取証紙は表示しません／軽自動車は申請方法=書類代行固定／下取りなしは所有者・残債をスキップ</span>
+    <span class="hint">
+      ※下取証紙は表示しません／軽自動車は申請方法=書類代行固定／普通車&奈良県以外は書類代行固定＋県外費用10,000円
+    </span>
   </div>
 
   <form id="feeForm">
@@ -73,7 +75,7 @@
         <h3>④ 申請方法</h3>
         <label id="applyOSSLabel"><input type="radio" name="apply" value="OSS" id="applyOSS">OSS</label>
         <label><input type="radio" name="apply" value="書類代行" id="applyDocs">書類代行</label>
-        <div class="noteSmall" id="applyLockNote" style="display:none;">※軽自動車は書類代行固定</div>
+        <div class="noteSmall" id="applyLockNote" style="display:none;"></div>
       </section>
 
       <section class="panel wide">
@@ -161,7 +163,7 @@
       </div>
 
       <div class="hint" style="margin-top:8px;">
-        ※非課税として扱っているもの：車庫証紙 / 下取車諸手続 / R資金管理料金 / 図柄寄付金（登録証紙・下取証紙は表示しません）
+        ※非課税：車庫証紙 / 下取車諸手続 / R資金管理料金 / 図柄寄付金（登録証紙・下取証紙は表示しません）
       </div>
     </div>
   </form>
@@ -169,11 +171,12 @@
 </div>
 
 <script>
-/** ========= 料金表（内蔵） ========= **/
+/** ========= 料金表 ========= **/
 function typeKeyFromCar(car){
-  return (car === "軽自動車") ? "軽四" : "小型"; // 普通車=小型扱い
+  return (car === "軽自動車") ? "軽四" : "小型";
 }
 const APPLY_FEE = { "OSS": 41000, "書類代行": 24500 };
+const KENGAI_FEE = 10000; // 普通車で奈良県以外のとき追加
 
 // 車庫証明代行費用：軽自動車で必要なら 16,800 / 普通車は不要（0）
 const SHAKO_DAIKO_KEI_NEED = 16800;
@@ -189,29 +192,30 @@ const SHAKO_SHOSHI = {
   "兵庫県": { "軽四": 0, "小型": 2200 }
 };
 
-// 標板代（ペイント）
+// ★標板代（軽四：訂正後）
 const PLATE_PAINT = {
   "軽四": {
-    "奈良県": { "一般番号": 6060, "希望番号": 8860, "ラグビー": 9160, "オリンピック": 11400, "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
-    "京都府": { "一般番号": 5460, "希望番号": 8860, "ラグビー": 9160, "オリンピック": 11050, "ご当地": 11050, "全国図柄": 11050, "万博図柄": 11050 },
-    "大阪府": { "一般番号": 5500, "希望番号": 8040, "ラグビー": 8310, "オリンピック": 10200, "ご当地": 10200, "全国図柄": 10200, "万博図柄": 10200 },
-    "滋賀県": { "一般番号": 5720, "希望番号": 8860, "ラグビー": 9160, "オリンピック": 11460, "ご当地": 11460, "全国図柄": 11460, "万博図柄": 11460 },
-    "和歌山県": { "一般番号": 6040, "希望番号": 8860, "ラグビー": 9160, "オリンピック": null,  "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
-    "三重県": { "一般番号": 6000, "希望番号": 7980, "ラグビー": 8240, "オリンピック": 10800, "ご当地": 10800, "全国図柄": 10800, "万博図柄": 10800 },
-    "兵庫県": { "一般番号": 5800, "希望番号": 8040, "ラグビー": 8310, "オリンピック": null,  "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 }
+    "奈良県": { "一般番号": 2180, "希望番号": 6060, "ラグビー": 8860, "オリンピック": 9160, "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
+    "京都府": { "一般番号": 2180, "希望番号": 5460, "ラグビー": 8860, "オリンピック": 9160, "ご当地": 11050, "全国図柄": 11050, "万博図柄": 11050 },
+    "大阪府": { "一般番号": 2000, "希望番号": 5500, "ラグビー": 8040, "オリンピック": 8310, "ご当地": 10200, "全国図柄": 10200, "万博図柄": 10200 },
+    "滋賀県": { "一般番号": 2180, "希望番号": 5720, "ラグビー": 8860, "オリンピック": 9160, "ご当地": 11460, "全国図柄": 11460, "万博図柄": 11460 },
+    "和歌山県": { "一般番号": 2180, "希望番号": 6040, "ラグビー": 8860, "オリンピック": 9160, "ご当地": null,  "全国図柄": 11400, "万博図柄": 11400 },
+    "三重県": { "一般番号": 2200, "希望番号": 6000, "ラグビー": 7980, "オリンピック": 8240, "ご当地": 10800, "全国図柄": 10800, "万博図柄": 10800 },
+    "兵庫県": { "一般番号": 2200, "希望番号": 5800, "ラグビー": 8040, "オリンピック": 8310, "ご当地": null,  "全国図柄": 11400, "万博図柄": 11400 }
   },
+  // ★標板代（小型＝普通車：訂正後）
   "小型": {
-    "奈良県": { "一般番号": 5510, "希望番号": 8190, "ラグビー": 8490, "オリンピック": 10370, "ご当地": 10370, "全国図柄": 10370, "万博図柄": 10370 },
-    "京都府": { "一般番号": 4970, "希望番号": 8190, "ラグビー": 8500, "オリンピック": 10050, "ご当地": 10050, "全国図柄": 10050, "万博図柄": 10050 },
-    "大阪府": { "一般番号": 5300, "希望番号": 7830, "ラグビー": 8110, "オリンピック": 9800,  "ご当地": 9800,  "全国図柄": 9800,  "万博図柄": 9800 },
-    "滋賀県": { "一般番号": 5200, "希望番号": 8190, "ラグビー": 8490, "オリンピック": 10420, "ご当地": 10420, "全国図柄": 10420, "万博図柄": 10420 },
-    "和歌山県": { "一般番号": 5350, "希望番号": 8180, "ラグビー": 8470, "オリンピック": null,  "ご当地": 10360, "全国図柄": 10360, "万博図柄": 10360 },
-    "三重県": { "一般番号": 5440, "希望番号": 7370, "ラグビー": 7620, "オリンピック": 9820,  "ご当地": 9820,  "全国図柄": 9820,  "万博図柄": 9820 },
-    "兵庫県": { "一般番号": 5300, "希望番号": 7820, "ラグビー": 8100, "オリンピック": null,  "ご当地": 10400, "全国図柄": 10400, "万博図柄": 10400 }
+    "奈良県": { "一般番号": 1990, "希望番号": 5510, "ラグビー": 8190, "オリンピック": 8490, "ご当地": 10370, "全国図柄": 10370, "万博図柄": 10370 },
+    "京都府": { "一般番号": 1990, "希望番号": 4970, "ラグビー": 8190, "オリンピック": 8500, "ご当地": 10050, "全国図柄": 10050, "万博図柄": 10050 },
+    "大阪府": { "一般番号": 1900, "希望番号": 5300, "ラグビー": 7830, "オリンピック": 8110, "ご当地": 9800,  "全国図柄": 9800,  "万博図柄": 9800 },
+    "滋賀県": { "一般番号": 1990, "希望番号": 5200, "ラグビー": 8190, "オリンピック": 8490, "ご当地": 10420, "全国図柄": 10420, "万博図柄": 10420 },
+    "和歌山県": { "一般番号": 1950, "希望番号": 5350, "ラグビー": 8180, "オリンピック": 8470, "ご当地": null,  "全国図柄": 10360, "万博図柄": 10360 },
+    "三重県": { "一般番号": 1980, "希望番号": 5440, "ラグビー": 7370, "オリンピック": 7620, "ご当地": 9820,  "全国図柄": 9820,  "万博図柄": 9820 },
+    "兵庫県": { "一般番号": 1990, "希望番号": 5300, "ラグビー": 7820, "オリンピック": 8100, "ご当地": null,  "全国図柄": 10400, "万博図柄": 10400 }
   }
 };
 
-// 字光式（一般/希望）
+// ★字光式（訂正後）
 const PLATE_JIKOU = {
   "軽四": {
     "奈良県": { "一般番号": 9560, "希望番号": 11710 },
@@ -233,6 +237,7 @@ const PLATE_JIKOU = {
   }
 };
 
+// 希望番号/図柄関連（申込10,000は不要＝なし）
 const HOPE_FEE = { "小型": 11000, "軽四": 11000 };
 const PATTERN_FEE = { "小型": 20000, "軽四": 17000 };
 const PATTERN_DONATION = 1000;
@@ -241,12 +246,15 @@ const JIKOU_TOOL = 27500;
 
 // 下取り関連（下取証紙は表示しない＝計上もしない）
 const TRADEIN_DAIKO = 23000;
-const TRADEIN_PROC = 500; // 下取車諸手続（非課税）
-
+const TRADEIN_PROC = 500; // 非課税
 const LOAN_FEE = 880;
 
+// R関連
 const R_MGMT = 290;   // 非課税
 const R_ISSUE = 2200; // 課税
+
+// ★登録証紙（表示しないが、普通車の標板代に合算するために使用）
+const REG_STAMP = { "OSS": 2200, "小型": 2800, "軽四": 1900 };
 
 /** ========= UI / 計算 ========= **/
 const yenFmt = n => new Intl.NumberFormat("ja-JP").format(Math.max(0, Math.round(n||0)));
@@ -300,22 +308,36 @@ function enforcePlateRules(){
 
 function updateConditionalUI(){
   const car = getVal("car");
+  const pref = getVal("pref");
   const trade = getVal("trade");
   const owner = getVal("owner");
 
-  // ■軽自動車は申請方法=書類代行固定（OSS無効）
+  // ■申請方法の制御
+  let lockMsg = "";
+
+  // 1) 軽自動車は書類代行固定
   if(car === "軽自動車"){
     applyOSS.disabled = true;
     applyOSSLabel.classList.add("disabled");
-    applyLockNote.style.display = "block";
     setChecked("apply","書類代行");
+    lockMsg = "※軽自動車は書類代行固定";
   } else {
-    applyOSS.disabled = false;
-    applyOSSLabel.classList.remove("disabled");
-    applyLockNote.style.display = "none";
+    // 普通車
+    if(car === "普通車" && pref && pref !== "奈良県"){
+      // 2) 普通車 + 奈良県以外は書類代行固定
+      applyOSS.disabled = true;
+      applyOSSLabel.classList.add("disabled");
+      setChecked("apply","書類代行");
+      lockMsg = "※普通車で奈良県以外は書類代行固定（県外費用10,000円加算）";
+    } else {
+      applyOSS.disabled = false;
+      applyOSSLabel.classList.remove("disabled");
+    }
   }
+  applyLockNote.style.display = lockMsg ? "block" : "none";
+  applyLockNote.textContent = lockMsg;
 
-  // ■下取りなし：所有者・残債をスキップ（選択解除＆無効化）
+  // ■下取りなし：所有者・残債スキップ
   if(trade === "なし"){
     clearGroup("owner");
     clearGroup("loan");
@@ -323,14 +345,14 @@ function updateConditionalUI(){
     setGroupDisabled("loan", true);
     ownerBox.classList.add("disabled");
     loanBox.classList.add("disabled");
-    return; // ここで確定
+    return;
   }
 
   // 下取りあり：所有者は有効
   setGroupDisabled("owner", false);
   ownerBox.classList.remove("disabled");
 
-  // ■所有者がお客様：残債スキップ（選択解除＆無効化）
+  // ■所有者がお客様：残債スキップ
   if(owner === "お客様"){
     clearGroup("loan");
     setGroupDisabled("loan", true);
@@ -339,7 +361,6 @@ function updateConditionalUI(){
     setGroupDisabled("loan", false);
     loanBox.classList.remove("disabled");
   } else {
-    // owner未選択のときは loanも無効化しておく
     clearGroup("loan");
     setGroupDisabled("loan", true);
     loanBox.classList.add("disabled");
@@ -365,20 +386,13 @@ function calc(){
 
   const needPattern = (plate === "希望図柄番号");
 
-  // 必須条件を動的に変更
+  // 必須条件（動的）
   const required = ["car","pref","shakoNeed","apply","plate","plateStyle","trade"];
-
-  // 下取りあり のときだけ owner必須
   if(trade === "あり") required.push("owner");
-
-  // ownerが信販会社のときだけ loan必須
   if(trade === "あり" && owner === "信販会社") required.push("loan");
-
-  // 希望図柄のときだけ pattern必須
   if(needPattern) required.push("pattern");
 
   const missing = required.filter(k => !getVal(k));
-
   if(missing.length){
     statusText.textContent = "未選択があります（必須項目を選択してください）";
     statusText.style.color = "#b00020";
@@ -388,12 +402,19 @@ function calc(){
   }
 
   const typeKey = typeKeyFromCar(car);
-
   const rows = [];
   const push = (label, yen, note="", taxable=true) => rows.push({label, yen:Number(yen||0), note, taxable});
 
-  // ④申請方法：登録代行費用
-  if(apply) push("登録代行費用", APPLY_FEE[apply] ?? 0, "", true);
+  // ■登録代行費用（+県外費用ルール）
+  if(apply){
+    let base = APPLY_FEE[apply] ?? 0;
+    if(car === "普通車" && pref && pref !== "奈良県"){
+      base += KENGAI_FEE;
+      push("登録代行費用", base, "（県外費用 10,000円含む）", true);
+    } else {
+      push("登録代行費用", base, "", true);
+    }
+  }
 
   // ③車庫証明
   if(shakoNeed === "必要"){
@@ -409,25 +430,42 @@ function calc(){
     push("車庫証紙", 0, "（車庫証明不要）", false);
   }
 
+  // ■普通車は「OSS/書類代行」の違いを参照して登録証紙を標板代に合算
+  //  - OSS: 2,200 / 書類代行(小型): 2,800
+  // ※登録証紙は表示しない（合算のみ）
+  const regStampToMerge =
+    (car === "普通車" && apply)
+      ? (apply === "OSS" ? REG_STAMP["OSS"] : REG_STAMP["小型"])
+      : 0;
+
   // ⑤/⑥ 標板
   const plateTable = (plateStyle === "字光式") ? PLATE_JIKOU : PLATE_PAINT;
   const plateRow = plateTable?.[typeKey]?.[pref] ?? null;
 
+  const addPlate = (label, baseValue, noteBase="")=>{
+    const merged = (baseValue ?? 0) + (regStampToMerge || 0);
+    const note = (car === "普通車" && apply)
+      ? (regStampToMerge ? `（登録証紙 ${yenFmt(regStampToMerge)}円を合算）` : "")
+      : noteBase;
+    push(label, merged, noteBase ? noteBase : note, true);
+  };
+
   if(plate === "一般番号"){
     const v = plateRow?.["一般番号"];
-    push(`標板代（${plateStyle}・一般番号）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
+    addPlate(`標板代（${plateStyle}・一般番号）`, v ?? 0, v==null ? "（金額未設定）" : "");
   }
 
   if(plate === "希望番号"){
     const v = plateRow?.["希望番号"];
-    push(`標板代（${plateStyle}・希望番号）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
+    addPlate(`標板代（${plateStyle}・希望番号）`, v ?? 0, v==null ? "（金額未設定）" : "");
     push("希望番号手数料（希望）", HOPE_FEE[typeKey] ?? 0, "", true);
   }
 
   if(plate === "希望図柄番号"){
     const pRow = PLATE_PAINT?.[typeKey]?.[pref] ?? null;
     const v = pRow?.[pattern] ?? null;
-    push(`標板代（ペイント・図柄：${pattern}）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
+    // 図柄はペイント固定
+    addPlate(`標板代（ペイント・図柄：${pattern}）`, v ?? 0, v==null ? "（金額未設定）" : "");
     push("希望番号手数料（希望）", HOPE_FEE[typeKey] ?? 0, "", true);
     push("希望番号手数料（図柄）", PATTERN_FEE[typeKey] ?? 0, "", true);
     push("図柄寄付金", PATTERN_DONATION, "", false);
@@ -441,7 +479,7 @@ function calc(){
   push("R資金管理料金", R_MGMT, "", false);
   push("R発行費用", R_ISSUE, "", true);
 
-  // ⑦下取り（下取証紙は表示しない＝計上なし）
+  // ⑦下取り（下取証紙は表示/計上しない）
   if(trade === "あり"){
     if(owner === "信販会社"){
       push("下取代行", TRADEIN_DAIKO, "", true);
@@ -454,21 +492,17 @@ function calc(){
     push("下取車諸手続", 0, "（下取りなし）", false);
   }
 
-  // ⑨残債（必須は信販会社のときだけ。計算も同様）
+  // ⑨残債（信販会社のときのみ）
   if(trade === "あり" && owner === "信販会社"){
-    if(loan === "あり"){
-      push("残債手数料", LOAN_FEE, "", true);
-    } else if(loan === "なし"){
-      push("残債手数料", 0, "（残債なし）", true);
-    } else {
-      push("残債手数料", 0, "（未選択）", true);
-    }
+    if(loan === "あり") push("残債手数料", LOAN_FEE, "", true);
+    else if(loan === "なし") push("残債手数料", 0, "（残債なし）", true);
+    else push("残債手数料", 0, "（未選択）", true);
   } else {
-    // スキップ
+    // スキップ（行を出したくない場合はこのpushを削除してください）
     push("残債手数料", 0, "（スキップ）", true);
   }
 
-  // ===== 表描画（課税/非課税、小計） =====
+  // ===== 表描画 =====
   const taxable = rows.filter(r=>r.taxable);
   const nontax = rows.filter(r=>!r.taxable);
 
@@ -506,7 +540,6 @@ function calc(){
 document.getElementById("resetBtn").addEventListener("click", ()=>{
   form.reset();
   setPatternEnabled(false);
-  // UI条件を反映してから計算
   calc();
 });
 document.getElementById("recalcBtn").addEventListener("click", calc);
