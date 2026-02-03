@@ -39,7 +39,7 @@
   <div class="top">
     <button class="btn" id="resetBtn">選択を解除</button>
     <button class="btn" id="recalcBtn">確認（再計算）</button>
-    <span class="hint">※料金表は、あなたが貼ってくれた画像/文字列の数値を内蔵済み（検査登録届出代行費用は削除済み）</span>
+    <span class="hint">※検査登録届出代行費用は削除済み／普通車の車庫証明代行費用は不要</span>
   </div>
 
   <form id="feeForm">
@@ -83,7 +83,7 @@
             <label><input type="radio" name="plate" value="希望図柄番号">希望図柄番号</label>
           </div>
 
-          <div style="flex:1; min-width:320px;" class="panel" id="plateDetailBox">
+          <div style="flex:1; min-width:320px;" class="panel">
             <h3 style="margin:0 0 8px;">⑥ 図柄/方式（⑤により有効）</h3>
 
             <div class="hint">方式</div>
@@ -157,7 +157,7 @@
       </div>
 
       <div class="hint" style="margin-top:8px;">
-        ※非課税として扱っているもの：車庫証紙/登録証紙/下取証紙/下取車諸手続/R資金管理料金/図柄寄付金
+        ※非課税として扱っているもの：車庫証紙/登録証紙（合算対象以外）/下取証紙/下取車諸手続/R資金管理料金/図柄寄付金
       </div>
     </div>
   </form>
@@ -170,13 +170,13 @@ function typeKeyFromCar(car){
   return (car === "軽自動車") ? "軽四" : "小型"; // 普通車=小型扱い
 }
 
-// ④申請方法：登録代行費用（諸費用表）
+// ④申請方法：登録代行費用
 const APPLY_FEE = { "OSS": 41000, "書類代行": 24500 };
 
-// ★修正点：軽自動車で車庫証明が必要な場合、代行費用は 16,800 円で加算する
-const SHAKO_DAIKO_K_KEI_NEED = 16800;
+// ★車庫証明代行費用：軽自動車で必要なら 16,800 / 普通車は不要（0）
+const SHAKO_DAIKO_KEI_NEED = 16800;
 
-// 車庫証紙（画像：7府県ぶん）※非課税
+// 車庫証紙（非課税）
 const SHAKO_SHOSHI = {
   "奈良県": { "軽四": 0, "小型": 2100 },
   "京都府": { "軽四": 0, "小型": 2280 },
@@ -187,7 +187,7 @@ const SHAKO_SHOSHI = {
   "兵庫県": { "軽四": 0, "小型": 2200 }
 };
 
-// ⑤/⑥ 標板代（ペイント）
+// 標板代（ペイント）
 const PLATE_PAINT = {
   "軽四": {
     "奈良県": { "一般番号": 6060, "希望番号": 8860, "ラグビー": 9160, "オリンピック": 11400, "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
@@ -209,7 +209,7 @@ const PLATE_PAINT = {
   }
 };
 
-// ⑥字光式（一般/希望）
+// 字光式（一般/希望）
 const PLATE_JIKOU = {
   "軽四": {
     "奈良県": { "一般番号": 9560, "希望番号": 11710 },
@@ -252,7 +252,7 @@ const LOAN_FEE = 880;
 const R_MGMT = 290;
 const R_ISSUE = 2200;
 
-// 登録証紙（OSS/小型/軽四）
+// 登録証紙（OSS/小型/軽四）※非課税
 const REG_STAMP = { "OSS": 2200, "小型": 2800, "軽四": 1900 };
 
 /** ========= UI / 計算 ========= **/
@@ -329,20 +329,16 @@ function calc(){
   // ④申請方法：登録代行費用
   if(apply) push("登録代行費用", APPLY_FEE[apply] ?? 0, "", true);
 
-  // 登録証紙（非課税）
-  if(apply){
-    const stamp = (apply === "OSS") ? REG_STAMP["OSS"] : REG_STAMP[typeKey];
-    push("登録証紙", stamp ?? 0, "", false);
-  }
+  // 登録証紙（非課税）…ただし「ペイント・一般番号」のときは標板代へ合算して行自体は出さない
+  const regStamp = (apply === "OSS") ? REG_STAMP["OSS"] : REG_STAMP[typeKey];
 
   // ③車庫証明
   if(shakoNeed === "必要"){
     if(car === "軽自動車"){
-      // ★要望どおり：軽自動車で必要なら 16,800 を加算
-      push("車庫証明代行費用", SHAKO_DAIKO_K_KEI_NEED, "（軽自動車＋必要）", true);
+      push("車庫証明代行費用", SHAKO_DAIKO_KEI_NEED, "（軽自動車＋必要）", true);
     } else {
-      // 普通車（小型）は、必要なら 16,800（必要ならここも変更可）
-      push("車庫証明代行費用", 16800, "", true);
+      // ★要望どおり：普通車は不要
+      push("車庫証明代行費用", 0, "（普通車は不要）", true);
     }
     const sh = SHAKO_SHOSHI?.[pref]?.[typeKey];
     push("車庫証紙", sh ?? 0, "", false);
@@ -355,9 +351,22 @@ function calc(){
   const plateTable = (plateStyle === "字光式") ? PLATE_JIKOU : PLATE_PAINT;
   const plateRow = plateTable?.[typeKey]?.[pref] ?? null;
 
+  // 合算条件：ペイント＋一般番号 のときだけ、標板代に登録証紙を合算する
+  const mergeRegStampIntoPaintGeneral = (plateStyle === "ペイント" && plate === "一般番号" && (regStamp!=null));
+
   if(plate === "一般番号"){
     const v = plateRow?.["一般番号"];
-    push(`標板代（${plateStyle}・一般番号）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
+    const base = (v ?? 0);
+    const merged = mergeRegStampIntoPaintGeneral ? (base + regStamp) : base;
+
+    push(
+      mergeRegStampIntoPaintGeneral
+        ? "標板代（ペイント・一般番号）＋登録証紙"
+        : `標板代（${plateStyle}・一般番号）`,
+      merged,
+      mergeRegStampIntoPaintGeneral ? "（登録証紙を合算）" : (v==null ? "（金額未設定）" : ""),
+      true // 合算後は課税枠で表示（要望どおり「結果として出力」優先）
+    );
   }
 
   if(plate === "希望番号"){
@@ -380,7 +389,12 @@ function calc(){
     push("字光式器具（税込）", JIKOU_TOOL, "", true);
   }
 
-  // R関連（必要に応じて条件付きに変更可）
+  // 登録証紙を「合算しなかった場合」だけ表示（非課税）
+  if(apply && !mergeRegStampIntoPaintGeneral){
+    push("登録証紙", regStamp ?? 0, "", false);
+  }
+
+  // R関連
   push("R資金管理料金", R_MGMT, "", false);
   push("R発行費用", R_ISSUE, "", true);
 
