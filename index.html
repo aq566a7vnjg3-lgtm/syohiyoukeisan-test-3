@@ -252,8 +252,6 @@ const PLATE_JIKOU = {
   }
 };
 
-// 希望番号（申込）…画像：希望番号 10000（課税扱い）
-const HOPE_NUMBER_APPLY = 10000;
 
 // 希望番号手数料（諸費用表）…「希望」= 11000（課税扱い）
 const HOPE_FEE = { "小型": 11000, "軽四": 11000 };
@@ -368,14 +366,6 @@ function calc(){
   // ④申請方法（登録代行費用）
   if(apply) push("登録代行費用", APPLY_FEE[apply] ?? 0, "", true);
 
-  // 検査登録届出代行費用（書類代行のときだけ表あり）
-  if(apply === "書類代行"){
-    const rk = kensaRegion(pref);
-    const v = rk ? (KENSA_DAIKO[typeKey]?.[rk] ?? null) : null;
-    if(v!=null) push("検査登録届出代行費用", v, "", true);
-    else push("検査登録届出代行費用", 0, "（この都道府県の金額表が未設定）", true);
-  } else if(apply === "OSS"){
-    push("検査登録届出代行費用", 0, "（OSSの検査登録代行費用表が未提示のため0円扱い）", true);
   }
 
   // 登録証紙（非課税）
