@@ -103,10 +103,7 @@
     border-color:#7ea1ff;
     box-shadow:0 0 0 3px rgba(126,161,255,.22);
   }
-  .disabled{
-    opacity:.5;
-    pointer-events:none;
-  }
+  .disabled{ opacity:.5; pointer-events:none; }
   .noteSmall{ font-size:12px; color:var(--muted); margin-top:6px; line-height:1.4; }
 
   .result{
@@ -124,13 +121,10 @@
     justify-content:space-between;
     margin-bottom:10px;
   }
-  .total{
-    font-size:20px;
-    font-weight:900;
-  }
+  .total{ font-size:20px; font-weight:900; }
   .status{ font-size:13px; font-weight:750; }
 
-  /* Mobile-first: list-like table */
+  /* Mobile-first: list-like */
   .rows{ display:grid; gap:10px; }
   .row{
     border:1px solid var(--border);
@@ -148,7 +142,7 @@
   .yen{ font-variant-numeric: tabular-nums; white-space:nowrap; font-weight:900; }
   .memo{ font-size:12px; color:var(--muted); line-height:1.4; }
 
-  /* Desktop: real table */
+  /* Desktop: table */
   .tblwrap{ display:none; overflow:auto; border:1px solid var(--border); border-radius:12px; }
   table{ width:100%; border-collapse:collapse; min-width:860px; background:#fff; font-size:13px; }
   thead th{ background:#eef2ff; border:1px solid var(--border); padding:10px; text-align:left; }
@@ -171,7 +165,7 @@
     </div>
     <div class="hint">
       下取証紙は表示しません／下取りなしは所有者・残債をスキップ／所有権お客様は残債スキップ<br>
-      申請方法ルール：普通車+奈良県→OSS自動選択、奈良県以外→書類代行固定+県外費用10,000円／軽自動車も奈良県以外→書類代行固定+県外費用10,000円
+      普通車+奈良県→OSS自動選択、奈良県以外→書類代行固定+県外費用10,000円／軽自動車も奈良県以外→書類代行固定+県外費用10,000円
     </div>
   </div>
 
@@ -311,7 +305,7 @@
 
       <div class="hint" style="margin-top:10px;">
         ※非課税：車庫証紙 / 下取車諸手続 / 図柄寄付金（登録証紙・下取証紙は表示しません）<br>
-        ※R資金管理料金は削除済み／残債手数料は「R発行費用/振込手数料」に合算して表示します
+        ※課税分の「R発行費用/振込手数料」に、必要時のみ残債手数料(880円)を合算して1行表示します
       </div>
     </div>
   </form>
@@ -385,11 +379,8 @@ const JIKOU_TOOL = 27500;
 const TRADEIN_DAIKO = 23000;
 const TRADEIN_PROC = 500;
 
-// ★残債手数料（単独表示しない：R発行費用に合算する）
-const LOAN_FEE = 880;
-
-// ★R発行費用（ここに残債手数料を合算して表示）
-const R_ISSUE = 2200;
+const LOAN_FEE = 880;   // 残債手数料
+const R_ISSUE = 2200;   // R発行費用
 
 // 登録証紙（表示しない／普通車の標板代にのみ合算）
 const REG_STAMP = { "OSS": 2200, "小型": 2800, "軽四": 1900 };
@@ -657,15 +648,15 @@ function calc(){
     push("下取車諸手続", 0, "（下取りなし）", false);
   }
 
-  // ★残債手数料は単独表示せず、R発行費用に合算する
+  // ★ここが要望：R発行費用 + 残債手数料 を1行に合算して表示
   const loanFeeForMerge =
     (trade === "あり" && owner === "信販会社" && loan === "あり")
       ? LOAN_FEE
       : 0;
 
-  const mergedRIssue = R_ISSUE + loanFeeForMerge;
-  const rNote = loanFeeForMerge ? `（残債手数料 ${yenFmt(loanFeeForMerge)}円を合算）` : "";
-  push("R発行費用/振込手数料", mergedRIssue, rNote, true);
+  const mergedFee = R_ISSUE + loanFeeForMerge;
+  const mergedNote = loanFeeForMerge ? `（残債手数料 ${yenFmt(loanFeeForMerge)}円を合算）` : "";
+  push("R発行費用/振込手数料", mergedFee, mergedNote, true);
 
   // 集計
   const taxable = rows.filter(r=>r.taxable);
