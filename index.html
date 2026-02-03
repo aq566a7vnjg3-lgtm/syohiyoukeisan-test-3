@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>諸費用 自動計算</title>
+<style>
+  :root{ --bg:#fbf6b8; --panel:#fff; --border:#9aa3ad; --head:#cfe0ef; --sec:#e9f0f7; --sub:#d9ecf7; }
+  body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif; background:var(--bg); color:#111;}
+  .wrap{ max-width:1100px; margin:18px auto 30px; padding:0 12px; }
+  .top{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
+  .btn{ border:1px solid #666; background:#f2f2f2; padding:6px 10px; border-radius:4px; cursor:pointer; }
+  .grid{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+  .panel{ background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:10px; }
+  .panel h3{ margin:0 0 8px; color:#1f4fbf; font-size:15px; }
+  label{ display:flex; gap:8px; align-items:center; margin:4px 0; font-size:14px; user-select:none; }
+  input[type="radio"]{ transform:translateY(1px); }
+  .wide{ grid-column:span 2; }
+  .disabled{ opacity:.45; pointer-events:none; }
+  .hint{ font-size:12px; color:#444; }
+  .result{ margin-top:14px; background:#fff; border:1px solid var(--border); border-radius:8px; padding:12px; }
+  .resultTop{ display:flex; flex-wrap:wrap; gap:12px 18px; align-items:baseline; margin-bottom:10px; }
+  .total{ font-size:20px; font-weight:800; }
+  .status{ font-size:13px; }
+  .tblwrap{ overflow:auto; border:1px solid var(--border); border-radius:6px; }
+  table{ width:100%; border-collapse:collapse; min-width:920px; background:#fff; font-size:13px; }
+  thead th{ background:var(--head); border:1px solid var(--border); padding:8px 10px; text-align:left; }
+  td{ border:1px solid var(--border); padding:7px 10px; vertical-align:top; }
+  .yen{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .sec td{ background:var(--sec); font-weight:700; }
+  .sub td{ background:var(--sub); font-weight:800; }
+  tfoot td{ background:var(--sub); font-weight:800; border-top:2px solid #7fa0b8; }
+  @media (max-width:920px){ .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } .wide{ grid-column:span 2; } table{ min-width:760px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <button class="btn" id="resetBtn">選択を解除</button>
+    <button class="btn" id="recalcBtn">確認（再計算）</button>
+    <span class="hint">※料金表は、あなたが貼ってくれた画像/文字列の数値を内蔵済み</span>
+  </div>
+
+  <form id="feeForm">
+    <div class="grid">
+
+      <section class="panel">
+        <h3>① 車種</h3>
+        <label><input type="radio" name="car" value="普通車">普通車（小型扱い）</label>
+        <label><input type="radio" name="car" value="軽自動車">軽自動車（軽四）</label>
+      </section>
+
+      <section class="panel">
+        <h3>② 都道府県</h3>
+        <label><input type="radio" name="pref" value="奈良県">奈良県</label>
+        <label><input type="radio" name="pref" value="京都府">京都府</label>
+        <label><input type="radio" name="pref" value="大阪府">大阪府</label>
+        <label><input type="radio" name="pref" value="滋賀県">滋賀県</label>
+        <label><input type="radio" name="pref" value="和歌山県">和歌山県</label>
+        <label><input type="radio" name="pref" value="三重県">三重県</label>
+        <label><input type="radio" name="pref" value="兵庫県">兵庫県</label>
+      </section>
+
+      <section class="panel">
+        <h3>③ 車庫証明</h3>
+        <label><input type="radio" name="shakoNeed" value="必要">車庫証明必要</label>
+        <label><input type="radio" name="shakoNeed" value="不要">車庫証明不要</label>
+      </section>
+
+      <section class="panel">
+        <h3>④ 申請方法</h3>
+        <label><input type="radio" name="apply" value="OSS">OSS</label>
+        <label><input type="radio" name="apply" value="書類代行">書類代行</label>
+      </section>
+
+      <section class="panel wide">
+        <h3>⑤ 標板</h3>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:240px;">
+            <label><input type="radio" name="plate" value="一般番号">一般番号</label>
+            <label><input type="radio" name="plate" value="希望番号">希望番号</label>
+            <label><input type="radio" name="plate" value="希望図柄番号">希望図柄番号</label>
+          </div>
+
+          <div style="flex:1; min-width:320px;" class="panel" id="plateDetailBox">
+            <h3 style="margin:0 0 8px;">⑥ 図柄/方式（⑤により有効）</h3>
+
+            <div class="hint">方式</div>
+            <label><input type="radio" name="plateStyle" value="ペイント">ペイント</label>
+            <label><input type="radio" name="plateStyle" value="字光式">字光式</label>
+
+            <div style="height:8px;"></div>
+            <div class="hint">図柄（⑤が希望図柄番号のとき）</div>
+            <div id="patternBox" class="disabled">
+              <label><input type="radio" name="pattern" value="ご当地">ご当地</label>
+              <label><input type="radio" name="pattern" value="全国図柄">全国図柄</label>
+              <label><input type="radio" name="pattern" value="万博図柄">万博図柄</label>
+              <label><input type="radio" name="pattern" value="ラグビー">ラグビー</label>
+              <label><input type="radio" name="pattern" value="オリンピック">オリンピック</label>
+            </div>
+
+            <div class="hint" style="margin-top:8px;">
+              ※字光式は「一般番号/希望番号」のみ対応（図柄は自動でペイントに固定）
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel wide">
+        <h3>⑦ 下取車 / ⑧ 所有者 / ⑨ 残債</h3>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:220px;">
+            <div class="hint">⑦ 下取り</div>
+            <label><input type="radio" name="trade" value="あり">下取りあり</label>
+            <label><input type="radio" name="trade" value="なし">下取りなし</label>
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <div class="hint">⑧ 所有者</div>
+            <label><input type="radio" name="owner" value="お客様">所有権お客様</label>
+            <label><input type="radio" name="owner" value="信販会社">所有権信販会社</label>
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <div class="hint">⑨ 残債</div>
+            <label><input type="radio" name="loan" value="あり">残債あり</label>
+            <label><input type="radio" name="loan" value="なし">残債なし</label>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="result">
+      <div class="resultTop">
+        <div class="total">合計：<span id="totalYen">0</span> 円</div>
+        <div class="status" id="statusText">必須項目を選択してください</div>
+      </div>
+
+      <div class="tblwrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:42%;">申請方法</th>
+              <th class="yen" style="width:18%;" id="thApply">（未選択）</th>
+              <th style="width:40%;">備考</th>
+            </tr>
+          </thead>
+          <tbody id="resultTbody"></tbody>
+          <tfoot>
+            <tr>
+              <td>非課税分小計</td>
+              <td class="yen" id="nontaxSubtotalYen">0</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="hint" style="margin-top:8px;">
+        ※非課税として扱っているもの：車庫証紙/登録証紙/下取証紙/下取車諸手続/R資金管理料金（必要なら課税へ変更できます）
+      </div>
+    </div>
+  </form>
+
+</div>
+
+<script>
+/** ========= 料金表（あなたの画像/文字列から反映） ========= **/
+
+const PREFS = ["奈良県","京都府","大阪府","滋賀県","和歌山県","三重県","兵庫県"];
+
+// ①車種 -> 内部キー
+function typeKeyFromCar(car){
+  return (car === "軽自動車") ? "軽四" : "小型"; // 普通車は小型扱い
+}
+
+// ④申請方法：登録代行費用（諸費用表）
+const APPLY_FEE = {
+  "OSS": 41000,
+  "書類代行": 24500
+};
+
+// ③車庫証明代行費用（諸費用表：小型16,800 / 軽四6,200）
+const SHAKO_DAIKO = { "小型": 16800, "軽四": 6200 };
+
+// 車庫証紙（画像：7府県ぶん）※非課税扱い
+const SHAKO_SHOSHI = {
+  "奈良県": { "軽四": 0, "小型": 2100 },
+  "京都府": { "軽四": 0, "小型": 2280 },
+  "大阪府": { "軽四": 0, "小型": 2200 },
+  "滋賀県": { "軽四": 0, "小型": 2250 },
+  "和歌山県": { "軽四": 0, "小型": 2100 },
+  "三重県": { "軽四": 0, "小型": 2200 },
+  "兵庫県": { "軽四": 0, "小型": 2200 }
+};
+
+// 検査登録届出代行費用（画像：奈良県 / 京都・大阪）※課税扱い
+const KENSA_DAIKO = {
+  "軽四": { "奈良県": 39700, "京都大阪": 50700 },
+  "小型": { "奈良県": 41700, "京都大阪": 63700 }
+  // 外車データもあったがUIに無いので省略（必要なら追加）
+};
+function kensaRegion(pref){
+  if(pref === "奈良県") return "奈良県";
+  if(pref === "京都府" || pref === "大阪府") return "京都大阪";
+  // 他府県は表が無いので0扱い＋注記にする
+  return null;
+}
+
+// ⑤/⑥ 標板代（ペイント）…画像の「軽四標板代」「小型標板代」
+// 列：一般番号/希望番号/ご当地/全国図柄/万博図柄/ラグビー/オリンピック
+const PLATE_PAINT = {
+  "軽四": {
+    "奈良県": { "一般番号": 6060, "希望番号": 8860, "ラグビー": 9160, "オリンピック": 11400, "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
+    "京都府": { "一般番号": 5460, "希望番号": 8860, "ラグビー": 9160, "オリンピック": 11050, "ご当地": 11050, "全国図柄": 11050, "万博図柄": 11050 },
+    "大阪府": { "一般番号": 5500, "希望番号": 8040, "ラグビー": 8310, "オリンピック": 10200, "ご当地": 10200, "全国図柄": 10200, "万博図柄": 10200 },
+    "滋賀県": { "一般番号": 5720, "希望番号": 8860, "ラグビー": 9160, "オリンピック": 11460, "ご当地": 11460, "全国図柄": 11460, "万博図柄": 11460 },
+    "和歌山県": { "一般番号": 6040, "希望番号": 8860, "ラグビー": 9160, "オリンピック": null,  "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
+    "三重県": { "一般番号": 6000, "希望番号": 7980, "ラグビー": 8240, "オリンピック": 10800, "ご当地": 10800, "全国図柄": 10800, "万博図柄": 10800 },
+    "兵庫県": { "一般番号": 5800, "希望番号": 8040, "ラグビー": 8310, "オリンピック": null,  "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 }
+  },
+  "小型": {
+    "奈良県": { "一般番号": 5510, "希望番号": 8190, "ラグビー": 8490, "オリンピック": 10370, "ご当地": 10370, "全国図柄": 10370, "万博図柄": 10370 },
+    "京都府": { "一般番号": 4970, "希望番号": 8190, "ラグビー": 8500, "オリンピック": 10050, "ご当地": 10050, "全国図柄": 10050, "万博図柄": 10050 },
+    "大阪府": { "一般番号": 5300, "希望番号": 7830, "ラグビー": 8110, "オリンピック": 9800,  "ご当地": 9800,  "全国図柄": 9800,  "万博図柄": 9800 },
+    "滋賀県": { "一般番号": 5200, "希望番号": 8190, "ラグビー": 8490, "オリンピック": 10420, "ご当地": 10420, "全国図柄": 10420, "万博図柄": 10420 },
+    "和歌山県": { "一般番号": 5350, "希望番号": 8180, "ラグビー": 8470, "オリンピック": null,  "ご当地": 10360, "全国図柄": 10360, "万博図柄": 10360 },
+    "三重県": { "一般番号": 5440, "希望番号": 7370, "ラグビー": 7620, "オリンピック": 9820,  "ご当地": 9820,  "全国図柄": 9820,  "万博図柄": 9820 },
+    "兵庫県": { "一般番号": 5300, "希望番号": 7820, "ラグビー": 8100, "オリンピック": null,  "ご当地": 10400, "全国図柄": 10400, "万博図柄": 10400 }
+  }
+};
+
+// ⑥字光式（画像：一般番号/希望番号のみ）
+const PLATE_JIKOU = {
+  "軽四": {
+    "奈良県": { "一般番号": 9560, "希望番号": 11710 },
+    "京都府": { "一般番号": 9440, "希望番号": 11590 },
+    "大阪府": { "一般番号": 8700, "希望番号": 10100 },
+    "滋賀県": { "一般番号": 9560, "希望番号": 11710 },
+    "和歌山県": { "一般番号": 9560, "希望番号": 11710 },
+    "三重県": { "一般番号": 7900, "希望番号": 9700 },
+    "兵庫県": { "一般番号": 8700, "希望番号": 10600 }
+  },
+  "小型": {
+    "奈良県": { "一般番号": 6860, "希望番号": 10030 },
+    "京都府": { "一般番号": 6850, "希望番号": 9700 },
+    "大阪府": { "一般番号": 5800, "希望番号": 8300 },
+    "滋賀県": { "一般番号": 6910, "希望番号": 9830 },
+    "和歌山県": { "一般番号": 6700, "希望番号": 9070 },
+    "三重県": { "一般番号": 5800, "希望番号": 9440 },
+    "兵庫県": { "一般番号": 6820, "希望番号": 10560 }
+  }
+};
+
+// 希望番号（申込）…画像：希望番号 10000（課税扱い）
+const HOPE_NUMBER_APPLY = 10000;
+
+// 希望番号手数料（諸費用表）…「希望」= 11000（課税扱い）
+const HOPE_FEE = { "小型": 11000, "軽四": 11000 };
+
+// 図柄手数料（諸費用表）…「図柄」= 小型 20000 / 軽四 17000（課税扱い）
+const PATTERN_FEE = { "小型": 20000, "軽四": 17000 };
+
+// 図柄寄付金（画像）… 1000（非課税として扱う or 課税にしたければ下で変更）
+const PATTERN_DONATION = 1000;
+
+// 字光式器具（税込）… 27500（課税扱い：設備）
+const JIKOU_TOOL = 27500;
+
+// 下取代行（諸費用表）… 23000（課税扱い）
+const TRADEIN_DAIKO = 23000;
+
+// 下取証紙（諸費用表）… 500（非課税）
+const TRADEIN_STAMP = 500;
+
+// 下取車諸手続（画像）… 500（非課税）
+const TRADEIN_PROC = 500;
+
+// 残債手数料（諸費用表）… 880（課税扱い）
+const LOAN_FEE = 880;
+
+// R資金管理料金（諸費用表）… 290（非課税）
+const R_MGMT = 290;
+
+// R発行費用（諸費用表）… 2200（課税扱い）
+const R_ISSUE = 2200;
+
+// 登録証紙（画像：OSS/小型/軽四）…非課税扱い
+const REG_STAMP = { "OSS": 2200, "小型": 2800, "軽四": 1900 };
+
+/** ========= 画面制御/計算 ========= **/
+const yenFmt = n => new Intl.NumberFormat("ja-JP").format(Math.max(0, Math.round(n||0)));
+const form = document.getElementById("feeForm");
+const patternBox = document.getElementById("patternBox");
+const statusText = document.getElementById("statusText");
+const totalYenEl = document.getElementById("totalYen");
+const tbody = document.getElementById("resultTbody");
+const nontaxEl = document.getElementById("nontaxSubtotalYen");
+const thApply = document.getElementById("thApply");
+
+function getVal(name){
+  const el = form.querySelector(`input[name="${name}"]:checked`);
+  return el ? el.value : null;
+}
+function escapeHtml(str){
+  return String(str ?? "")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+function setPatternEnabled(enabled){
+  patternBox.classList.toggle("disabled", !enabled);
+  if(!enabled){
+    form.querySelectorAll('input[name="pattern"]').forEach(r=>r.checked=false);
+  }
+}
+
+function enforcePlateRules(){
+  const plate = getVal("plate");
+  const style = getVal("plateStyle");
+  const needPattern = (plate === "希望図柄番号");
+  setPatternEnabled(needPattern);
+
+  // 希望図柄はペイント固定（字光式には図柄表が無い）
+  if(needPattern && style === "字光式"){
+    // ペイントに切替
+    const paint = form.querySelector('input[name="plateStyle"][value="ペイント"]');
+    if(paint) paint.checked = true;
+  }
+}
+
+function calc(){
+  enforcePlateRules();
+
+  const car = getVal("car");
+  const pref = getVal("pref");
+  const shakoNeed = getVal("shakoNeed");
+  const apply = getVal("apply");
+  const plate = getVal("plate");
+  const plateStyle = getVal("plateStyle") || "ペイント";
+  const pattern = getVal("pattern");
+  const trade = getVal("trade");
+  const owner = getVal("owner");
+  const loan = getVal("loan");
+
+  thApply.textContent = apply || "（未選択）";
+
+  const needPattern = (plate === "希望図柄番号");
+
+  // 必須チェック（⑥は plateStyle必須、patternは希望図柄のみ必須）
+  const required = ["car","pref","shakoNeed","apply","plate","plateStyle","trade","owner","loan"];
+  const missing = required.filter(k => !getVal(k));
+  if(needPattern && !pattern) missing.push("pattern");
+
+  if(missing.length){
+    statusText.textContent = "未選択があります（必須項目を選択してください）";
+    statusText.style.color = "#b00020";
+  } else {
+    statusText.textContent = "計算OK";
+    statusText.style.color = "#1b7f2a";
+  }
+
+  const typeKey = typeKeyFromCar(car);
+
+  // 明細行 {label,yen,note,taxable}
+  const rows = [];
+  const push = (label, yen, note="", taxable=true) => rows.push({label, yen:Number(yen||0), note, taxable});
+
+  // ④申請方法（登録代行費用）
+  if(apply) push("登録代行費用", APPLY_FEE[apply] ?? 0, "", true);
+
+  // 検査登録届出代行費用（書類代行のときだけ表あり）
+  if(apply === "書類代行"){
+    const rk = kensaRegion(pref);
+    const v = rk ? (KENSA_DAIKO[typeKey]?.[rk] ?? null) : null;
+    if(v!=null) push("検査登録届出代行費用", v, "", true);
+    else push("検査登録届出代行費用", 0, "（この都道府県の金額表が未設定）", true);
+  } else if(apply === "OSS"){
+    push("検査登録届出代行費用", 0, "（OSSの検査登録代行費用表が未提示のため0円扱い）", true);
+  }
+
+  // 登録証紙（非課税）
+  if(apply){
+    const stamp = (apply === "OSS") ? REG_STAMP["OSS"] : REG_STAMP[typeKey];
+    push("登録証紙", stamp ?? 0, "", false);
+  }
+
+  // ③車庫証明
+  if(shakoNeed === "必要"){
+    push("車庫証明代行費用", SHAKO_DAIKO[typeKey] ?? 0, "", true);
+    const sh = SHAKO_SHOSHI?.[pref]?.[typeKey];
+    push("車庫証紙", sh ?? 0, "", false);
+  } else {
+    push("車庫証明代行費用", 0, "（車庫証明不要）", true);
+    push("車庫証紙", 0, "（車庫証明不要）", false);
+  }
+
+  // ⑤/⑥ 標板
+  const plateTable = (plateStyle === "字光式") ? PLATE_JIKOU : PLATE_PAINT;
+  const plateRow = plateTable?.[typeKey]?.[pref] ?? null;
+
+  // 標板本体（一般/希望/図柄）
+  if(plate === "一般番号"){
+    const v = plateRow?.["一般番号"];
+    push(`標板代（${plateStyle}・一般番号）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
+  }
+
+  if(plate === "希望番号"){
+    const v = plateRow?.["希望番号"];
+    push(`標板代（${plateStyle}・希望番号）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
+    push("希望番号 申込", HOPE_NUMBER_APPLY, "", true);
+    push("希望番号手数料（希望）", HOPE_FEE[typeKey] ?? 0, "", true);
+  }
+
+  if(plate === "希望図柄番号"){
+    // 図柄はペイント表から取得
+    const pRow = PLATE_PAINT?.[typeKey]?.[pref] ?? null;
+    const v = pRow?.[pattern] ?? null;
+    push(`標板代（ペイント・図柄：${pattern}）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
+    push("希望番号手数料（希望）", HOPE_FEE[typeKey] ?? 0, "", true);
+    push("希望番号手数料（図柄）", PATTERN_FEE[typeKey] ?? 0, "", true);
+    push("図柄寄付金", PATTERN_DONATION, "", false);
+  }
+
+  // 字光式器具（税込）…方式が字光式のとき追加
+  if(plateStyle === "字光式"){
+    push("字光式器具（税込）", JIKOU_TOOL, "", true);
+  }
+
+  // R関連（諸費用表）…常に計上（不要ならコメントアウトOK）
+  push("R資金管理料金", R_MGMT, "", false);
+  push("R発行費用", R_ISSUE, "", true);
+
+  // ⑦下取り
+  if(trade === "あり"){
+    // 所有権が信販会社のときだけ下取代行を入れる（運用に合わせて変更可）
+    if(owner === "信販会社"){
+      push("下取代行", TRADEIN_DAIKO, "", true);
+    } else {
+      push("下取代行", 0, "（所有権お客様：該当なし扱い）", true);
+    }
+    push("下取証紙", TRADEIN_STAMP, "", false);
+    push("下取車諸手続", TRADEIN_PROC, "", false);
+  } else {
+    push("下取代行", 0, "（下取りなし）", true);
+    push("下取証紙", 0, "（下取りなし）", false);
+    push("下取車諸手続", 0, "（下取りなし）", false);
+  }
+
+  // ⑨残債
+  if(loan === "あり"){
+    push("残債手数料", LOAN_FEE, "", true);
+  } else {
+    push("残債手数料", 0, "（残債なし）", true);
+  }
+
+  // ===== 表描画（画像風：課税/非課税、小計） =====
+  const taxable = rows.filter(r=>r.taxable);
+  const nontax = rows.filter(r=>!r.taxable);
+
+  const taxSum = taxable.reduce((a,b)=>a+b.yen,0);
+  const nonSum = nontax.reduce((a,b)=>a+b.yen,0);
+  const total = taxSum + nonSum;
+
+  tbody.innerHTML = "";
+  tbody.insertAdjacentHTML("beforeend", `<tr class="sec"><td>課税分</td><td class="yen"></td><td></td></tr>`);
+  taxable.forEach(r=>{
+    tbody.insertAdjacentHTML("beforeend",
+      `<tr><td>${escapeHtml(r.label)}</td><td class="yen">${r.yen?yenFmt(r.yen):"-"}</td><td>${escapeHtml(r.note||"")}</td></tr>`
+    );
+  });
+  tbody.insertAdjacentHTML("beforeend",
+    `<tr class="sub"><td>課税分小計</td><td class="yen">${yenFmt(taxSum)}</td><td></td></tr>`
+  );
+
+  tbody.insertAdjacentHTML("beforeend", `<tr class="sec"><td>非課税分</td><td class="yen"></td><td></td></tr>`);
+  if(nontax.length===0){
+    tbody.insertAdjacentHTML("beforeend", `<tr><td>（該当なし）</td><td class="yen">-</td><td></td></tr>`);
+  } else {
+    nontax.forEach(r=>{
+      tbody.insertAdjacentHTML("beforeend",
+        `<tr><td>${escapeHtml(r.label)}</td><td class="yen">${r.yen?yenFmt(r.yen):"-"}</td><td>${escapeHtml(r.note||"")}</td></tr>`
+      );
+    });
+  }
+
+  totalYenEl.textContent = yenFmt(total);
+  nontaxEl.textContent = yenFmt(nonSum);
+}
+
+/** イベント */
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  form.reset();
+  setPatternEnabled(false);
+  calc();
+});
+document.getElementById("recalcBtn").addEventListener("click", calc);
+form.addEventListener("change", calc);
+
+// 初期：plateStyle は選んでなくても動くように（計算時にペイント扱い）
+calc();
+</script>
+</body>
+</html>
