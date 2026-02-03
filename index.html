@@ -41,7 +41,7 @@
     <button class="btn" id="resetBtn">選択を解除</button>
     <button class="btn" id="recalcBtn">確認（再計算）</button>
     <span class="hint">
-      ※下取証紙は表示しません／軽自動車は申請方法=書類代行固定／普通車&奈良県以外は書類代行固定＋県外費用10,000円
+      ※下取証紙は表示しません／下取りなしは所有者・残債をスキップ／所有権お客様は残債スキップ
     </span>
   </div>
 
@@ -172,16 +172,11 @@
 
 <script>
 /** ========= 料金表 ========= **/
-function typeKeyFromCar(car){
-  return (car === "軽自動車") ? "軽四" : "小型";
-}
+function typeKeyFromCar(car){ return (car === "軽自動車") ? "軽四" : "小型"; }
 const APPLY_FEE = { "OSS": 41000, "書類代行": 24500 };
-const KENGAI_FEE = 10000; // 普通車で奈良県以外のとき追加
-
-// 車庫証明代行費用：軽自動車で必要なら 16,800 / 普通車は不要（0）
+const KENGAI_FEE = 10000; // ★県外費用（奈良県以外で加算）
 const SHAKO_DAIKO_KEI_NEED = 16800;
 
-// 車庫証紙（非課税）
 const SHAKO_SHOSHI = {
   "奈良県": { "軽四": 0, "小型": 2100 },
   "京都府": { "軽四": 0, "小型": 2280 },
@@ -192,7 +187,6 @@ const SHAKO_SHOSHI = {
   "兵庫県": { "軽四": 0, "小型": 2200 }
 };
 
-// ★標板代（軽四：訂正後）
 const PLATE_PAINT = {
   "軽四": {
     "奈良県": { "一般番号": 2180, "希望番号": 6060, "ラグビー": 8860, "オリンピック": 9160, "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
@@ -203,7 +197,6 @@ const PLATE_PAINT = {
     "三重県": { "一般番号": 2200, "希望番号": 6000, "ラグビー": 7980, "オリンピック": 8240, "ご当地": 10800, "全国図柄": 10800, "万博図柄": 10800 },
     "兵庫県": { "一般番号": 2200, "希望番号": 5800, "ラグビー": 8040, "オリンピック": 8310, "ご当地": null,  "全国図柄": 11400, "万博図柄": 11400 }
   },
-  // ★標板代（小型＝普通車：訂正後）
   "小型": {
     "奈良県": { "一般番号": 1990, "希望番号": 5510, "ラグビー": 8190, "オリンピック": 8490, "ご当地": 10370, "全国図柄": 10370, "万博図柄": 10370 },
     "京都府": { "一般番号": 1990, "希望番号": 4970, "ラグビー": 8190, "オリンピック": 8500, "ご当地": 10050, "全国図柄": 10050, "万博図柄": 10050 },
@@ -215,7 +208,6 @@ const PLATE_PAINT = {
   }
 };
 
-// ★字光式（訂正後）
 const PLATE_JIKOU = {
   "軽四": {
     "奈良県": { "一般番号": 9560, "希望番号": 11710 },
@@ -237,23 +229,19 @@ const PLATE_JIKOU = {
   }
 };
 
-// 希望番号/図柄関連（申込10,000は不要＝なし）
 const HOPE_FEE = { "小型": 11000, "軽四": 11000 };
 const PATTERN_FEE = { "小型": 20000, "軽四": 17000 };
 const PATTERN_DONATION = 1000;
-
 const JIKOU_TOOL = 27500;
 
-// 下取り関連（下取証紙は表示しない＝計上もしない）
 const TRADEIN_DAIKO = 23000;
-const TRADEIN_PROC = 500; // 非課税
+const TRADEIN_PROC = 500;
 const LOAN_FEE = 880;
 
-// R関連
-const R_MGMT = 290;   // 非課税
-const R_ISSUE = 2200; // 課税
+const R_MGMT = 290;
+const R_ISSUE = 2200;
 
-// ★登録証紙（表示しないが、普通車の標板代に合算するために使用）
+// 登録証紙（表示はしない／普通車の標板代にのみ合算）
 const REG_STAMP = { "OSS": 2200, "小型": 2800, "軽四": 1900 };
 
 /** ========= UI / 計算 ========= **/
@@ -268,7 +256,6 @@ const thApply = document.getElementById("thApply");
 
 const applyOSS = document.getElementById("applyOSS");
 const applyOSSLabel = document.getElementById("applyOSSLabel");
-const applyDocs = document.getElementById("applyDocs");
 const applyLockNote = document.getElementById("applyLockNote");
 const ownerBox = document.getElementById("ownerBox");
 const loanBox = document.getElementById("loanBox");
@@ -306,38 +293,73 @@ function enforcePlateRules(){
   }
 }
 
-function updateConditionalUI(){
+/**
+ * ★申請方法ルール（今回の修正）
+ * - 普通車 & 奈良県：OSSを自動選択（OSS選択可）
+ * - 普通車 & 奈良県以外：書類代行に固定（OSS不可） + 県外費用
+ * - 軽自動車：奈良県ならOSS/書類代行を選べる（固定しない）
+ * - 軽自動車：奈良県以外なら書類代行に固定（OSS不可） + 県外費用
+ */
+function updateApplyRules(){
   const car = getVal("car");
   const pref = getVal("pref");
-  const trade = getVal("trade");
-  const owner = getVal("owner");
 
-  // ■申請方法の制御
+  // まだ揃ってないなら解除状態で終了
+  if(!car || !pref){
+    applyOSS.disabled = false;
+    applyOSSLabel.classList.remove("disabled");
+    applyLockNote.style.display = "none";
+    return;
+  }
+
+  const isNara = (pref === "奈良県");
+  const isOut = !isNara;
+
   let lockMsg = "";
 
-  // 1) 軽自動車は書類代行固定
-  if(car === "軽自動車"){
-    applyOSS.disabled = true;
-    applyOSSLabel.classList.add("disabled");
-    setChecked("apply","書類代行");
-    lockMsg = "※軽自動車は書類代行固定";
-  } else {
-    // 普通車
-    if(car === "普通車" && pref && pref !== "奈良県"){
-      // 2) 普通車 + 奈良県以外は書類代行固定
+  if(car === "普通車"){
+    if(isNara){
+      // ★普通車 + 奈良県：OSS自動選択
+      applyOSS.disabled = false;
+      applyOSSLabel.classList.remove("disabled");
+      setChecked("apply","OSS");
+      lockMsg = "※普通車＋奈良県はOSSを自動選択";
+    }else{
+      // ★普通車 + 奈良県以外：書類代行固定 + 県外費用
       applyOSS.disabled = true;
       applyOSSLabel.classList.add("disabled");
       setChecked("apply","書類代行");
       lockMsg = "※普通車で奈良県以外は書類代行固定（県外費用10,000円加算）";
+    }
+  } else if(car === "軽自動車"){
+    if(isOut){
+      // ★軽自動車 + 奈良県以外：書類代行固定 + 県外費用（今回の追加要望）
+      applyOSS.disabled = true;
+      applyOSSLabel.classList.add("disabled");
+      setChecked("apply","書類代行");
+      lockMsg = "※軽自動車で奈良県以外は書類代行固定（県外費用10,000円加算）";
     } else {
+      // ★軽自動車 + 奈良県：選択可能（固定しない）
       applyOSS.disabled = false;
       applyOSSLabel.classList.remove("disabled");
+      lockMsg = "※軽自動車＋奈良県はOSS/書類代行を選択可能";
+      // 申請方法が未選択ならとりあえず書類代行を入れておく（任意）
+      if(!getVal("apply")) setChecked("apply","書類代行");
     }
   }
+
   applyLockNote.style.display = lockMsg ? "block" : "none";
   applyLockNote.textContent = lockMsg;
+}
 
-  // ■下取りなし：所有者・残債スキップ
+function updateConditionalUI(){
+  const trade = getVal("trade");
+  const owner = getVal("owner");
+
+  // 申請方法ルール
+  updateApplyRules();
+
+  // 下取りなし：所有者・残債スキップ
   if(trade === "なし"){
     clearGroup("owner");
     clearGroup("loan");
@@ -352,7 +374,7 @@ function updateConditionalUI(){
   setGroupDisabled("owner", false);
   ownerBox.classList.remove("disabled");
 
-  // ■所有者がお客様：残債スキップ
+  // 所有者がお客様：残債スキップ
   if(owner === "お客様"){
     clearGroup("loan");
     setGroupDisabled("loan", true);
@@ -402,13 +424,16 @@ function calc(){
   }
 
   const typeKey = typeKeyFromCar(car);
+  const isNara = (pref === "奈良県");
+  const isOut = !isNara;
+
   const rows = [];
   const push = (label, yen, note="", taxable=true) => rows.push({label, yen:Number(yen||0), note, taxable});
 
-  // ■登録代行費用（+県外費用ルール）
+  // 登録代行費用（+県外費用：普通車/軽自動車とも奈良県以外で加算）
   if(apply){
     let base = APPLY_FEE[apply] ?? 0;
-    if(car === "普通車" && pref && pref !== "奈良県"){
+    if(isOut){
       base += KENGAI_FEE;
       push("登録代行費用", base, "（県外費用 10,000円含む）", true);
     } else {
@@ -416,7 +441,7 @@ function calc(){
     }
   }
 
-  // ③車庫証明
+  // 車庫証明
   if(shakoNeed === "必要"){
     if(car === "軽自動車"){
       push("車庫証明代行費用", SHAKO_DAIKO_KEI_NEED, "（軽自動車＋必要）", true);
@@ -430,76 +455,60 @@ function calc(){
     push("車庫証紙", 0, "（車庫証明不要）", false);
   }
 
-  // ■普通車は「OSS/書類代行」の違いを参照して登録証紙を標板代に合算
-  //  - OSS: 2,200 / 書類代行(小型): 2,800
-  // ※登録証紙は表示しない（合算のみ）
+  // 普通車は登録証紙を標板代に合算（OSS/書類代行で差を出す）
   const regStampToMerge =
     (car === "普通車" && apply)
       ? (apply === "OSS" ? REG_STAMP["OSS"] : REG_STAMP["小型"])
       : 0;
 
-  // ⑤/⑥ 標板
   const plateTable = (plateStyle === "字光式") ? PLATE_JIKOU : PLATE_PAINT;
   const plateRow = plateTable?.[typeKey]?.[pref] ?? null;
 
   const addPlate = (label, baseValue, noteBase="")=>{
     const merged = (baseValue ?? 0) + (regStampToMerge || 0);
-    const note = (car === "普通車" && apply)
-      ? (regStampToMerge ? `（登録証紙 ${yenFmt(regStampToMerge)}円を合算）` : "")
+    const note = (car === "普通車" && apply && regStampToMerge)
+      ? `（登録証紙 ${yenFmt(regStampToMerge)}円を合算）`
       : noteBase;
-    push(label, merged, noteBase ? noteBase : note, true);
+    push(label, merged, note, true);
   };
 
   if(plate === "一般番号"){
-    const v = plateRow?.["一般番号"];
-    addPlate(`標板代（${plateStyle}・一般番号）`, v ?? 0, v==null ? "（金額未設定）" : "");
+    addPlate(`標板代（${plateStyle}・一般番号）`, plateRow?.["一般番号"] ?? 0, plateRow?.["一般番号"]==null ? "（金額未設定）" : "");
   }
-
   if(plate === "希望番号"){
-    const v = plateRow?.["希望番号"];
-    addPlate(`標板代（${plateStyle}・希望番号）`, v ?? 0, v==null ? "（金額未設定）" : "");
+    addPlate(`標板代（${plateStyle}・希望番号）`, plateRow?.["希望番号"] ?? 0, plateRow?.["希望番号"]==null ? "（金額未設定）" : "");
     push("希望番号手数料（希望）", HOPE_FEE[typeKey] ?? 0, "", true);
   }
-
   if(plate === "希望図柄番号"){
     const pRow = PLATE_PAINT?.[typeKey]?.[pref] ?? null;
-    const v = pRow?.[pattern] ?? null;
-    // 図柄はペイント固定
-    addPlate(`標板代（ペイント・図柄：${pattern}）`, v ?? 0, v==null ? "（金額未設定）" : "");
+    addPlate(`標板代（ペイント・図柄：${pattern}）`, pRow?.[pattern] ?? 0, pRow?.[pattern]==null ? "（金額未設定）" : "");
     push("希望番号手数料（希望）", HOPE_FEE[typeKey] ?? 0, "", true);
     push("希望番号手数料（図柄）", PATTERN_FEE[typeKey] ?? 0, "", true);
     push("図柄寄付金", PATTERN_DONATION, "", false);
   }
 
   if(plateStyle === "字光式"){
-    push("字光式器具（税込）", JIKOU_TOOL, "", true);
+    push("字光式器具（税込）", 27500, "", true);
   }
 
   // R関連
   push("R資金管理料金", R_MGMT, "", false);
   push("R発行費用", R_ISSUE, "", true);
 
-  // ⑦下取り（下取証紙は表示/計上しない）
+  // 下取り（下取証紙は表示/計上しない）
   if(trade === "あり"){
-    if(owner === "信販会社"){
-      push("下取代行", TRADEIN_DAIKO, "", true);
-    } else {
-      push("下取代行", 0, "（所有権お客様：該当なし扱い）", true);
-    }
+    if(owner === "信販会社") push("下取代行", TRADEIN_DAIKO, "", true);
+    else push("下取代行", 0, "（所有権お客様：該当なし扱い）", true);
     push("下取車諸手続", TRADEIN_PROC, "", false);
   } else {
     push("下取代行", 0, "（下取りなし）", true);
     push("下取車諸手続", 0, "（下取りなし）", false);
   }
 
-  // ⑨残債（信販会社のときのみ）
+  // 残債（信販会社のときのみ）
   if(trade === "あり" && owner === "信販会社"){
     if(loan === "あり") push("残債手数料", LOAN_FEE, "", true);
-    else if(loan === "なし") push("残債手数料", 0, "（残債なし）", true);
-    else push("残債手数料", 0, "（未選択）", true);
-  } else {
-    // スキップ（行を出したくない場合はこのpushを削除してください）
-    push("残債手数料", 0, "（スキップ）", true);
+    else push("残債手数料", 0, "（残債なし）", true);
   }
 
   // ===== 表描画 =====
@@ -517,9 +526,7 @@ function calc(){
       `<tr><td>${escapeHtml(r.label)}</td><td class="yen">${r.yen?yenFmt(r.yen):"-"}</td><td>${escapeHtml(r.note||"")}</td></tr>`
     );
   });
-  tbody.insertAdjacentHTML("beforeend",
-    `<tr class="sub"><td>課税分小計</td><td class="yen">${yenFmt(taxSum)}</td><td></td></tr>`
-  );
+  tbody.insertAdjacentHTML("beforeend", `<tr class="sub"><td>課税分小計</td><td class="yen">${yenFmt(taxSum)}</td><td></td></tr>`);
 
   tbody.insertAdjacentHTML("beforeend", `<tr class="sec"><td>非課税分</td><td class="yen"></td><td></td></tr>`);
   if(nontax.length===0){
@@ -536,7 +543,6 @@ function calc(){
   nontaxEl.textContent = yenFmt(nonSum);
 }
 
-/** イベント */
 document.getElementById("resetBtn").addEventListener("click", ()=>{
   form.reset();
   setPatternEnabled(false);
@@ -545,7 +551,6 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
 document.getElementById("recalcBtn").addEventListener("click", calc);
 form.addEventListener("change", calc);
 
-// 初期
 calc();
 </script>
 </body>
