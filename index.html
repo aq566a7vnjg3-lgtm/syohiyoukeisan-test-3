@@ -311,7 +311,7 @@
 
       <div class="hint" style="margin-top:10px;">
         ※非課税：車庫証紙 / 下取車諸手続 / 図柄寄付金（登録証紙・下取証紙は表示しません）<br>
-        ※R資金管理料金は削除しました（表示・計算ともに無し）
+        ※R資金管理料金は削除済み／残債手数料は「R発行費用/振込手数料」に合算して表示します
       </div>
     </div>
   </form>
@@ -322,7 +322,7 @@
 /** ========= 料金表 ========= **/
 function typeKeyFromCar(car){ return (car === "軽自動車") ? "軽四" : "小型"; }
 const APPLY_FEE = { "OSS": 41000, "書類代行": 24500 };
-const KENGAI_FEE = 10000; // 奈良県以外で加算
+const KENGAI_FEE = 10000;
 const SHAKO_DAIKO_KEI_NEED = 16800;
 
 const SHAKO_SHOSHI = {
@@ -384,9 +384,11 @@ const JIKOU_TOOL = 27500;
 
 const TRADEIN_DAIKO = 23000;
 const TRADEIN_PROC = 500;
+
+// ★残債手数料（単独表示しない：R発行費用に合算する）
 const LOAN_FEE = 880;
 
-// R発行費用のみ残す（R資金管理料金は削除）
+// ★R発行費用（ここに残債手数料を合算して表示）
 const R_ISSUE = 2200;
 
 // 登録証紙（表示しない／普通車の標板代にのみ合算）
@@ -441,13 +443,6 @@ function enforcePlateRules(){
   }
 }
 
-/**
- * 申請方法ルール（現行）
- * - 普通車 + 奈良県：OSS自動選択（OSS可）
- * - 普通車 + 奈良県以外：書類代行固定（OSS不可）＋県外費用
- * - 軽自動車 + 奈良県：OSS/書類代行選択可（未選択なら書類代行を入れる）
- * - 軽自動車 + 奈良県以外：書類代行固定（OSS不可）＋県外費用
- */
 function updateApplyRules(){
   const car = getVal("car");
   const pref = getVal("pref");
@@ -467,7 +462,7 @@ function updateApplyRules(){
     if(isNara){
       applyOSS.disabled = false;
       applyOSSLabel.classList.remove("disabled");
-      setChecked("apply","OSS"); // ★追加要望：普通車+奈良県はOSSを選択
+      setChecked("apply","OSS");
       lockMsg = "※普通車＋奈良県はOSSを自動選択";
     } else {
       applyOSS.disabled = true;
@@ -500,7 +495,6 @@ function updateConditionalUI(){
   updateApplyRules();
   enforcePlateRules();
 
-  // 下取りなし：所有者・残債スキップ
   if(trade === "なし"){
     clearGroup("owner"); clearGroup("loan");
     setGroupDisabled("owner", true);
@@ -513,7 +507,6 @@ function updateConditionalUI(){
   setGroupDisabled("owner", false);
   ownerBox.classList.remove("disabled");
 
-  // 所有者がお客様：残債スキップ
   if(owner === "お客様"){
     clearGroup("loan");
     setGroupDisabled("loan", true);
@@ -569,7 +562,6 @@ function calc(){
 
   const needPattern = (plate === "希望図柄番号");
 
-  // 必須（動的）
   const required = ["car","pref","shakoNeed","apply","plate","plateStyle","trade"];
   if(trade === "あり") required.push("owner");
   if(trade === "あり" && owner === "信販会社") required.push("loan");
@@ -591,7 +583,7 @@ function calc(){
   const rows = [];
   const push = (label, yen, note="", taxable=true)=> rows.push({label, yen:Number(yen||0), note, taxable});
 
-  // 登録代行費用（奈良県以外で普通車/軽自動車とも県外費用加算）
+  // 登録代行費用
   if(apply){
     let base = APPLY_FEE[apply] ?? 0;
     if(isOut){
@@ -616,7 +608,7 @@ function calc(){
     push("車庫証紙", 0, "（車庫証明不要）", false);
   }
 
-  // 普通車は登録証紙を標板代に合算（OSS/書類代行で差）
+  // 普通車は登録証紙を標板代に合算
   const regStampToMerge =
     (car === "普通車" && apply)
       ? (apply === "OSS" ? REG_STAMP["OSS"] : REG_STAMP["小型"])
@@ -655,9 +647,6 @@ function calc(){
     push("字光式器具（税込）", JIKOU_TOOL, "", true);
   }
 
-  // R発行費用（R資金管理料金は削除済み）
-  push("R発行費用", R_ISSUE, "", true);
-
   // 下取り（下取証紙は表示/計上しない）
   if(trade === "あり"){
     if(owner === "信販会社") push("下取代行", TRADEIN_DAIKO, "", true);
@@ -668,11 +657,15 @@ function calc(){
     push("下取車諸手続", 0, "（下取りなし）", false);
   }
 
-  // 残債（信販会社のときのみ）
-  if(trade === "あり" && owner === "信販会社"){
-    if(loan === "あり") push("残債手数料", LOAN_FEE, "", true);
-    else push("残債手数料", 0, "（残債なし）", true);
-  }
+  // ★残債手数料は単独表示せず、R発行費用に合算する
+  const loanFeeForMerge =
+    (trade === "あり" && owner === "信販会社" && loan === "あり")
+      ? LOAN_FEE
+      : 0;
+
+  const mergedRIssue = R_ISSUE + loanFeeForMerge;
+  const rNote = loanFeeForMerge ? `（残債手数料 ${yenFmt(loanFeeForMerge)}円を合算）` : "";
+  push("R発行費用/振込手数料", mergedRIssue, rNote, true);
 
   // 集計
   const taxable = rows.filter(r=>r.taxable);
@@ -684,31 +677,34 @@ function calc(){
   totalYenEl.textContent = yenFmt(total);
   nontaxEl.textContent = yenFmt(nonSum);
 
-  // モバイル表示（カード）
+  // Mobile cards
   let html = "";
   html += buildSection("課税分");
   taxable.forEach(r=> html += buildRowCard(r.label, r.yen, r.note));
   html += buildSub("課税分小計", taxSum);
   html += buildSection("非課税分");
-  if(nontax.length===0){
-    html += buildRowCard("（該当なし）", 0, "");
-  }else{
-    nontax.forEach(r=> html += buildRowCard(r.label, r.yen, r.note));
-  }
+  if(nontax.length===0) html += buildRowCard("（該当なし）", 0, "");
+  else nontax.forEach(r=> html += buildRowCard(r.label, r.yen, r.note));
   html += buildSub("非課税分小計", nonSum);
   rowsEl.innerHTML = html;
 
-  // デスクトップ表示（表）
+  // Desktop table
   tbody.innerHTML = "";
   const addTr = (label, yen, note)=> {
-    tbody.insertAdjacentHTML("beforeend", `<tr><td>${escapeHtml(label)}</td><td class="yen">${yen?yenFmt(yen):"-"}</td><td>${escapeHtml(note||"")}</td></tr>`);
+    tbody.insertAdjacentHTML("beforeend",
+      `<tr><td>${escapeHtml(label)}</td><td class="yen">${yen?yenFmt(yen):"-"}</td><td>${escapeHtml(note||"")}</td></tr>`
+    );
   };
-  const addSec = (t)=> tbody.insertAdjacentHTML("beforeend", `<tr><td colspan="3" style="background:#f3f6ff;font-weight:900;">${escapeHtml(t)}</td></tr>`);
-  const addSub = (t, y)=> tbody.insertAdjacentHTML("beforeend", `<tr><td style="background:#e8f1ff;font-weight:900;">${escapeHtml(t)}</td><td class="yen" style="background:#e8f1ff;font-weight:900;">${yenFmt(y)}</td><td style="background:#e8f1ff;"></td></tr>`);
+  const addSec = (t)=> tbody.insertAdjacentHTML("beforeend",
+    `<tr><td colspan="3" style="background:#f3f6ff;font-weight:900;">${escapeHtml(t)}</td></tr>`
+  );
+  const addSubRow = (t, y)=> tbody.insertAdjacentHTML("beforeend",
+    `<tr><td style="background:#e8f1ff;font-weight:900;">${escapeHtml(t)}</td><td class="yen" style="background:#e8f1ff;font-weight:900;">${yenFmt(y)}</td><td style="background:#e8f1ff;"></td></tr>`
+  );
 
   addSec("課税分");
   taxable.forEach(r=> addTr(r.label, r.yen, r.note));
-  addSub("課税分小計", taxSum);
+  addSubRow("課税分小計", taxSum);
   addSec("非課税分");
   if(nontax.length===0) addTr("（該当なし）", 0, "");
   else nontax.forEach(r=> addTr(r.label, r.yen, r.note));
