@@ -39,7 +39,7 @@
   <div class="top">
     <button class="btn" id="resetBtn">選択を解除</button>
     <button class="btn" id="recalcBtn">確認（再計算）</button>
-    <span class="hint">※料金表は、あなたが貼ってくれた画像/文字列の数値を内蔵済み</span>
+    <span class="hint">※料金表は、あなたが貼ってくれた画像/文字列の数値を内蔵済み（検査登録届出代行費用は削除済み）</span>
   </div>
 
   <form id="feeForm">
@@ -157,7 +157,7 @@
       </div>
 
       <div class="hint" style="margin-top:8px;">
-        ※非課税として扱っているもの：車庫証紙/登録証紙/下取証紙/下取車諸手続/R資金管理料金（必要なら課税へ変更できます）
+        ※非課税として扱っているもの：車庫証紙/登録証紙/下取証紙/下取車諸手続/R資金管理料金/図柄寄付金
       </div>
     </div>
   </form>
@@ -165,25 +165,18 @@
 </div>
 
 <script>
-/** ========= 料金表（あなたの画像/文字列から反映） ========= **/
-
-const PREFS = ["奈良県","京都府","大阪府","滋賀県","和歌山県","三重県","兵庫県"];
-
-// ①車種 -> 内部キー
+/** ========= 料金表（内蔵） ========= **/
 function typeKeyFromCar(car){
-  return (car === "軽自動車") ? "軽四" : "小型"; // 普通車は小型扱い
+  return (car === "軽自動車") ? "軽四" : "小型"; // 普通車=小型扱い
 }
 
 // ④申請方法：登録代行費用（諸費用表）
-const APPLY_FEE = {
-  "OSS": 41000,
-  "書類代行": 24500
-};
+const APPLY_FEE = { "OSS": 41000, "書類代行": 24500 };
 
-// ③車庫証明代行費用（諸費用表：小型16,800 / 軽四6,200）
-const SHAKO_DAIKO = { "小型": 16800, "軽四": 6200 };
+// ★修正点：軽自動車で車庫証明が必要な場合、代行費用は 16,800 円で加算する
+const SHAKO_DAIKO_K_KEI_NEED = 16800;
 
-// 車庫証紙（画像：7府県ぶん）※非課税扱い
+// 車庫証紙（画像：7府県ぶん）※非課税
 const SHAKO_SHOSHI = {
   "奈良県": { "軽四": 0, "小型": 2100 },
   "京都府": { "軽四": 0, "小型": 2280 },
@@ -194,21 +187,7 @@ const SHAKO_SHOSHI = {
   "兵庫県": { "軽四": 0, "小型": 2200 }
 };
 
-// 検査登録届出代行費用（画像：奈良県 / 京都・大阪）※課税扱い
-const KENSA_DAIKO = {
-  "軽四": { "奈良県": 39700, "京都大阪": 50700 },
-  "小型": { "奈良県": 41700, "京都大阪": 63700 }
-  // 外車データもあったがUIに無いので省略（必要なら追加）
-};
-function kensaRegion(pref){
-  if(pref === "奈良県") return "奈良県";
-  if(pref === "京都府" || pref === "大阪府") return "京都大阪";
-  // 他府県は表が無いので0扱い＋注記にする
-  return null;
-}
-
-// ⑤/⑥ 標板代（ペイント）…画像の「軽四標板代」「小型標板代」
-// 列：一般番号/希望番号/ご当地/全国図柄/万博図柄/ラグビー/オリンピック
+// ⑤/⑥ 標板代（ペイント）
 const PLATE_PAINT = {
   "軽四": {
     "奈良県": { "一般番号": 6060, "希望番号": 8860, "ラグビー": 9160, "オリンピック": 11400, "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
@@ -230,7 +209,7 @@ const PLATE_PAINT = {
   }
 };
 
-// ⑥字光式（画像：一般番号/希望番号のみ）
+// ⑥字光式（一般/希望）
 const PLATE_JIKOU = {
   "軽四": {
     "奈良県": { "一般番号": 9560, "希望番号": 11710 },
@@ -252,41 +231,31 @@ const PLATE_JIKOU = {
   }
 };
 
-
-// 希望番号手数料（諸費用表）…「希望」= 11000（課税扱い）
+// 希望番号関連
+const HOPE_NUMBER_APPLY = 10000;
 const HOPE_FEE = { "小型": 11000, "軽四": 11000 };
-
-// 図柄手数料（諸費用表）…「図柄」= 小型 20000 / 軽四 17000（課税扱い）
 const PATTERN_FEE = { "小型": 20000, "軽四": 17000 };
-
-// 図柄寄付金（画像）… 1000（非課税として扱う or 課税にしたければ下で変更）
 const PATTERN_DONATION = 1000;
 
-// 字光式器具（税込）… 27500（課税扱い：設備）
+// 字光式器具（税込）
 const JIKOU_TOOL = 27500;
 
-// 下取代行（諸費用表）… 23000（課税扱い）
+// 下取り関連
 const TRADEIN_DAIKO = 23000;
-
-// 下取証紙（諸費用表）… 500（非課税）
 const TRADEIN_STAMP = 500;
-
-// 下取車諸手続（画像）… 500（非課税）
 const TRADEIN_PROC = 500;
 
-// 残債手数料（諸費用表）… 880（課税扱い）
+// 残債
 const LOAN_FEE = 880;
 
-// R資金管理料金（諸費用表）… 290（非課税）
+// R関連
 const R_MGMT = 290;
-
-// R発行費用（諸費用表）… 2200（課税扱い）
 const R_ISSUE = 2200;
 
-// 登録証紙（画像：OSS/小型/軽四）…非課税扱い
+// 登録証紙（OSS/小型/軽四）
 const REG_STAMP = { "OSS": 2200, "小型": 2800, "軽四": 1900 };
 
-/** ========= 画面制御/計算 ========= **/
+/** ========= UI / 計算 ========= **/
 const yenFmt = n => new Intl.NumberFormat("ja-JP").format(Math.max(0, Math.round(n||0)));
 const form = document.getElementById("feeForm");
 const patternBox = document.getElementById("patternBox");
@@ -311,16 +280,12 @@ function setPatternEnabled(enabled){
     form.querySelectorAll('input[name="pattern"]').forEach(r=>r.checked=false);
   }
 }
-
 function enforcePlateRules(){
   const plate = getVal("plate");
   const style = getVal("plateStyle");
   const needPattern = (plate === "希望図柄番号");
   setPatternEnabled(needPattern);
-
-  // 希望図柄はペイント固定（字光式には図柄表が無い）
   if(needPattern && style === "字光式"){
-    // ペイントに切替
     const paint = form.querySelector('input[name="plateStyle"][value="ペイント"]');
     if(paint) paint.checked = true;
   }
@@ -344,7 +309,6 @@ function calc(){
 
   const needPattern = (plate === "希望図柄番号");
 
-  // 必須チェック（⑥は plateStyle必須、patternは希望図柄のみ必須）
   const required = ["car","pref","shakoNeed","apply","plate","plateStyle","trade","owner","loan"];
   const missing = required.filter(k => !getVal(k));
   if(needPattern && !pattern) missing.push("pattern");
@@ -359,14 +323,11 @@ function calc(){
 
   const typeKey = typeKeyFromCar(car);
 
-  // 明細行 {label,yen,note,taxable}
   const rows = [];
   const push = (label, yen, note="", taxable=true) => rows.push({label, yen:Number(yen||0), note, taxable});
 
-  // ④申請方法（登録代行費用）
+  // ④申請方法：登録代行費用
   if(apply) push("登録代行費用", APPLY_FEE[apply] ?? 0, "", true);
-
-  }
 
   // 登録証紙（非課税）
   if(apply){
@@ -376,7 +337,13 @@ function calc(){
 
   // ③車庫証明
   if(shakoNeed === "必要"){
-    push("車庫証明代行費用", SHAKO_DAIKO[typeKey] ?? 0, "", true);
+    if(car === "軽自動車"){
+      // ★要望どおり：軽自動車で必要なら 16,800 を加算
+      push("車庫証明代行費用", SHAKO_DAIKO_K_KEI_NEED, "（軽自動車＋必要）", true);
+    } else {
+      // 普通車（小型）は、必要なら 16,800（必要ならここも変更可）
+      push("車庫証明代行費用", 16800, "", true);
+    }
     const sh = SHAKO_SHOSHI?.[pref]?.[typeKey];
     push("車庫証紙", sh ?? 0, "", false);
   } else {
@@ -388,7 +355,6 @@ function calc(){
   const plateTable = (plateStyle === "字光式") ? PLATE_JIKOU : PLATE_PAINT;
   const plateRow = plateTable?.[typeKey]?.[pref] ?? null;
 
-  // 標板本体（一般/希望/図柄）
   if(plate === "一般番号"){
     const v = plateRow?.["一般番号"];
     push(`標板代（${plateStyle}・一般番号）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
@@ -402,7 +368,6 @@ function calc(){
   }
 
   if(plate === "希望図柄番号"){
-    // 図柄はペイント表から取得
     const pRow = PLATE_PAINT?.[typeKey]?.[pref] ?? null;
     const v = pRow?.[pattern] ?? null;
     push(`標板代（ペイント・図柄：${pattern}）`, v ?? 0, v==null ? "（金額未設定）" : "", true);
@@ -411,18 +376,16 @@ function calc(){
     push("図柄寄付金", PATTERN_DONATION, "", false);
   }
 
-  // 字光式器具（税込）…方式が字光式のとき追加
   if(plateStyle === "字光式"){
     push("字光式器具（税込）", JIKOU_TOOL, "", true);
   }
 
-  // R関連（諸費用表）…常に計上（不要ならコメントアウトOK）
+  // R関連（必要に応じて条件付きに変更可）
   push("R資金管理料金", R_MGMT, "", false);
   push("R発行費用", R_ISSUE, "", true);
 
   // ⑦下取り
   if(trade === "あり"){
-    // 所有権が信販会社のときだけ下取代行を入れる（運用に合わせて変更可）
     if(owner === "信販会社"){
       push("下取代行", TRADEIN_DAIKO, "", true);
     } else {
@@ -443,7 +406,7 @@ function calc(){
     push("残債手数料", 0, "（残債なし）", true);
   }
 
-  // ===== 表描画（画像風：課税/非課税、小計） =====
+  // ===== 表描画（課税/非課税、小計） =====
   const taxable = rows.filter(r=>r.taxable);
   const nontax = rows.filter(r=>!r.taxable);
 
@@ -486,7 +449,7 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
 document.getElementById("recalcBtn").addEventListener("click", calc);
 form.addEventListener("change", calc);
 
-// 初期：plateStyle は選んでなくても動くように（計算時にペイント扱い）
+// 初期
 calc();
 </script>
 </body>
